@@ -17,6 +17,8 @@ Environment:
 #include "driver.h"
 #include "queue.tmh"
 
+#include "EC.h"
+
 #ifdef ALLOC_PRAGMA
 #pragma alloc_text (PAGE, CrosECQueueInitialize)
 #endif
@@ -117,6 +119,50 @@ Return Value:
 		TRACE_QUEUE,
 		"%!FUNC! Queue 0x%p, Request 0x%p OutputBufferLength %d InputBufferLength %d IoControlCode %d",
 		Queue, Request, (int)OutputBufferLength, (int)InputBufferLength, IoControlCode);
+
+	WDFDEVICE device = WdfIoQueueGetDevice(Queue);
+	PDEVICE_CONTEXT deviceContext = DeviceGetContext(device);
+
+	switch (IoControlCode) {
+	case IOCTL_CROSEC_XCMD: {
+		struct cros_ec_command_v2* cmd;
+		size_t cmdLen;
+		WdfRequestRetrieveInputBuffer(Request, sizeof(cmd), (PVOID*)&cmd, &cmdLen);
+
+		RtlZeroMemory(deviceContext->inflightCommand, 0x200/*TODO*/);
+		memcpy(deviceContext->inflightCommand, cmd, InputBufferLength);
+
+		int res = ECSendCommandLPCv3(device, cmd->command, cmd->version, cmd->data, cmd->outsize, deviceContext->inflightCommand->data, cmd->insize);
+		if (res > 0) {
+			deviceContext->inflightCommand->insize = res;
+			res = 0; // propagate it to the client
+		}
+		deviceContext->inflightCommand->result = res;
+		int requiredReplySize = sizeof(struct cros_ec_command_v2) + deviceContext->inflightCommand->insize;
+
+		WDFMEMORY OutputMem;
+		WdfRequestRetrieveOutputMemory(Request, &OutputMem);
+		WdfMemoryCopyFromBuffer(OutputMem, 0, deviceContext->inflightCommand, min(requiredReplySize, OutputBufferLength));
+		WdfRequestSetInformation(Request, requiredReplySize);
+		break;
+	}
+	case IOCTL_CROSEC_RDMEM: {
+		struct cros_ec_readmem_v2* rq;
+		WdfRequestRetrieveInputBuffer(Request, sizeof(*rq), (PVOID*)&rq, NULL);
+
+		ECReadMemoryLPC(device, rq->offset, rq->buffer, rq->bytes);
+
+		struct cros_ec_readmem_v2* rs;
+		WdfRequestRetrieveOutputBuffer(Request, sizeof(*rs), (PVOID*)&rs, NULL);
+		memcpy(rs, rq, sizeof(rs));
+		WdfRequestSetInformation(Request, sizeof(*rs));
+
+		break;
+	}
+	default:
+		WdfRequestComplete(Request, STATUS_INVALID_PARAMETER);
+		return;
+	}
 
 	WdfRequestComplete(Request, STATUS_SUCCESS);
 
