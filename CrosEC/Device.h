@@ -15,6 +15,7 @@ Environment:
 --*/
 
 #include "public.h"
+#include "EC.h"
 
 EXTERN_C_START
 
@@ -24,9 +25,9 @@ EXTERN_C_START
 //
 typedef struct _DEVICE_CONTEXT
 {
-	ULONG PrivateDeviceData;  // just a placeholder
-
-} DEVICE_CONTEXT, * PDEVICE_CONTEXT;
+	struct cros_ec_command_v2* inflightCommand;
+	KTIMER waitTimer;
+} DEVICE_CONTEXT, *PDEVICE_CONTEXT;
 
 //
 // This macro will generate an inline function called DeviceGetContext
@@ -42,5 +43,9 @@ NTSTATUS
 CrosECCreateDevice(
 	_Inout_ PWDFDEVICE_INIT DeviceInit
 );
+
+NTSTATUS CrosECEvtDeviceContextCleanup(_In_ WDFOBJECT object);
+
+#define CROS_EC_POOL_TAG 'CRos'
 
 EXTERN_C_END
