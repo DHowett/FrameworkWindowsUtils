@@ -75,7 +75,7 @@ Return Value:
 		//
 		// Initialize the context.
 		//
-		deviceContext->inflightCommand = ExAllocatePoolWithTag(NonPagedPool, 0x200, CROS_EC_POOL_TAG);
+		deviceContext->inflightCommand = ExAllocatePoolWithTag(NonPagedPool, CROSEC_CMD_MAX, CROS_EC_POOL_TAG);
 		KeInitializeTimer(&deviceContext->waitTimer);
 
 		//

@@ -17,7 +17,6 @@ Environment:
 #pragma once
 
 #include "public.h"
-#include "EC.h"
 
 EXTERN_C_START
 
@@ -27,7 +26,7 @@ EXTERN_C_START
 //
 typedef struct _DEVICE_CONTEXT
 {
-	struct cros_ec_command_v2* inflightCommand;
+	PCROSEC_COMMAND inflightCommand;
 	KTIMER waitTimer;
 } DEVICE_CONTEXT, *PDEVICE_CONTEXT;
 
