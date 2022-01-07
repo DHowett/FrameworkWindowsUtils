@@ -1,7 +1,7 @@
 #include <ntddk.h>
 #include <wdf.h>
-#include <initguid.h>
 
+#include "Device.h"
 #include "EC.h"
 
 static __inline void outb(unsigned char __val, unsigned int __port)
@@ -24,7 +24,7 @@ static __inline unsigned short inw(unsigned int __port)
 	return READ_PORT_USHORT((PUSHORT)__port);
 }
 
-typedef enum _ec_transaction_direction { EC_TX_WRITE, EC_TX_READ } ec_transaction_direction;
+typedef enum _EC_TRANSMIT_DIRECTION { EC_TX_WRITE, EC_TX_READ } EC_TRANSMIT_DIRECTION;
 
 // As defined in MEC172x section 16.8.3
 // https://ww1.microchip.com/downloads/en/DeviceDoc/MEC172x-Data-Sheet-DS00003583C.pdf
@@ -38,15 +38,11 @@ typedef enum _ec_transaction_direction { EC_TX_WRITE, EC_TX_READ } ec_transactio
 #define FW_EC_EC_DATA_REGISTER2         0x0806
 #define FW_EC_EC_DATA_REGISTER3         0x0807
 
-typedef USHORT uint16_t;
-typedef ULONG uint32_t;
-typedef UCHAR uint8_t;
-
-static int ec_transact(ec_transaction_direction direction, uint16_t address,
-	char* data, uint16_t size)
+static int ECTransmit(WDFDEVICE originatingDevice, EC_TRANSMIT_DIRECTION direction, USHORT address, char* data, USHORT size)
 {
+	UNREFERENCED_PARAMETER(originatingDevice);
 	int pos = 0;
-	uint16_t temp[2];
+	USHORT temp[2];
 	if (address % 4 > 0) {
 		outw((address & 0xFFFC) | FW_EC_BYTE_ACCESS, FW_EC_EC_ADDRESS_REGISTER0);
 		/* Unaligned start address */
@@ -99,12 +95,14 @@ static int ec_transact(ec_transaction_direction direction, uint16_t address,
  * Wait for the EC to be unbusy.  Returns 0 if unbusy, non-zero if
  * timeout.
  */
-static int wait_for_ec(int status_addr, int timeout_usec)
+static int ECWaitForReady(WDFDEVICE originatingDevice, int statusAddr, int timeoutUsec)
 {
+	PDEVICE_CONTEXT deviceContext = DeviceGetContext(originatingDevice);
+
 	int i;
 	int delay = 5;
 
-	for (i = 0; i < timeout_usec; i += delay) {
+	for (i = 0; i < timeoutUsec; i += delay) {
 		/*
 		 * Delay first, in case we just sent out a command but the EC
 		 * hasn't raised the busy flag.  However, I think this doesn't
@@ -112,12 +110,12 @@ static int wait_for_ec(int status_addr, int timeout_usec)
 		 * busy flag is set by hardware.  Minor issue in any case,
 		 * since the initial delay is very short.
 		 */
-		//KTIMER kDelayTimer;
-		//KeInitializeTimer(&kDelayTimer);
-		//KeSetTimerEx(&kDelayTiemr, )
-		//MicroSecondDelay(MIN(delay, timeout_usec - i));
+		LARGE_INTEGER dueTime = {0, 0};
+		dueTime.QuadPart = delay * -10LL; /* 100-nsec units; negative = duration */
+		KeSetTimer(&deviceContext->waitTimer, dueTime, NULL);
+		KeWaitForSingleObject(&deviceContext->waitTimer, UserRequest, KernelMode, TRUE, NULL);
 
-		if (!(inb(status_addr) & EC_LPC_STATUS_BUSY_MASK))
+		if (!(inb(statusAddr) & EC_LPC_STATUS_BUSY_MASK))
 			return 0;
 
 		/* Increase the delay interval after a few rapid checks */
@@ -127,19 +125,24 @@ static int wait_for_ec(int status_addr, int timeout_usec)
 	return -1; /* Timeout */
 }
 
-static uint8_t ec_checksum_buffer(char* data, int size)
+static UCHAR ECChecksumBuffer(char* data, int size)
 {
-	uint8_t sum = 0;
+	UCHAR sum = 0;
 	for (int i = 0; i < size; ++i) {
 		sum += data[i];
 	}
 	return sum;
 };
 
-int ec_command(int command, int version, const void* outdata,
+int ECReadMemoryLPC(WDFDEVICE originatingDevice, int offset, void* buffer, int length)
+{
+	return ECTransmit(originatingDevice, EC_TX_READ, (USHORT)(offset + 0x100), buffer, (USHORT)length);
+}
+
+int ECSendCommandLPCv3(WDFDEVICE originatingDevice, int command, int version, const void* outdata,
 	int outsize, void* indata, int insize)
 {
-	uint8_t csum = 0;
+	UCHAR csum = 0;
 	int i;
 
 	union {
@@ -160,25 +163,25 @@ int ec_command(int command, int version, const void* outdata,
 	/* TODO(crosbug.com/p/23825): This should be common to all protocols */
 	u.rq.struct_version = EC_HOST_REQUEST_VERSION;
 	u.rq.checksum = 0;
-	u.rq.command = (uint16_t)command;
-	u.rq.command_version = (uint8_t)version;
+	u.rq.command = (USHORT)command;
+	u.rq.command_version = (UCHAR)version;
 	u.rq.reserved = 0;
-	u.rq.data_len = (uint16_t)outsize;
+	u.rq.data_len = (USHORT)outsize;
 
 	memcpy(&u.data[sizeof(u.rq)], outdata, outsize);
-	csum = ec_checksum_buffer(u.data, outsize + sizeof(u.rq));
-	u.rq.checksum = (uint8_t)(-csum);
+	csum = ECChecksumBuffer(u.data, outsize + sizeof(u.rq));
+	u.rq.checksum = (UCHAR)(-csum);
 
-	if (wait_for_ec(EC_LPC_ADDR_HOST_CMD, 1000000)) {
+	if (ECWaitForReady(originatingDevice, EC_LPC_ADDR_HOST_CMD, 1000000)) {
 		return -EC_RES_ERROR;
 	}
 
-	ec_transact(EC_TX_WRITE, 0, u.data, (uint16_t)(outsize + sizeof(u.rq)));
+	ECTransmit(originatingDevice, EC_TX_WRITE, 0, u.data, (USHORT)(outsize + sizeof(u.rq)));
 
 	/* Start the command */
 	outb(EC_COMMAND_PROTOCOL_3, EC_LPC_ADDR_HOST_CMD);
 
-	if (wait_for_ec(EC_LPC_ADDR_HOST_CMD, 1000000)) {
+	if (ECWaitForReady(originatingDevice, EC_LPC_ADDR_HOST_CMD, 1000000)) {
 		return -EC_RES_ERROR;
 	}
 
@@ -189,7 +192,7 @@ int ec_command(int command, int version, const void* outdata,
 	}
 
 	csum = 0;
-	ec_transact(EC_TX_READ, 0, r.data, sizeof(r.rs));
+	ECTransmit(originatingDevice, EC_TX_READ, 0, r.data, sizeof(r.rs));
 
 	if (r.rs.struct_version != EC_HOST_RESPONSE_VERSION) {
 		return -EC_RES_INVALID_RESPONSE;
@@ -204,8 +207,8 @@ int ec_command(int command, int version, const void* outdata,
 	}
 
 	if (r.rs.data_len > 0) {
-		ec_transact(EC_TX_READ, 8, r.data + sizeof(r.rs), r.rs.data_len);
-		if (ec_checksum_buffer(r.data, sizeof(r.rs) + r.rs.data_len)) {
+		ECTransmit(originatingDevice, EC_TX_READ, 8, r.data + sizeof(r.rs), r.rs.data_len);
+		if (ECChecksumBuffer(r.data, sizeof(r.rs) + r.rs.data_len)) {
 			return -EC_RES_INVALID_CHECKSUM;
 		}
 

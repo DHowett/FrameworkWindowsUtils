@@ -1,5 +1,7 @@
 #pragma once
 
+#include <wdf.h>
+
 #ifndef __packed
 #define __packed
 #endif
@@ -106,5 +108,6 @@ enum ec_status {
 } __packed;
 #include <poppack.h>
 
-int ec_command(int command, int version, const void* outdata,
+int ECReadMemoryLPC(WDFDEVICE originatingDevice, int offset, void* buffer, int length);
+int ECSendCommandLPCv3(WDFDEVICE originatingDevice,  int command, int version, const void* outdata,
 	int outsize, void* indata, int insize);
