@@ -90,6 +90,11 @@ NTSTATUS CrosECIoctlXCmd(_In_ WDFDEVICE Device, _In_ PDEVICE_CONTEXT DeviceConte
 	size_t cmdLen;
 	NT_RETURN_IF_NTSTATUS_FAILED(WdfRequestRetrieveInputBuffer(Request, sizeof(cmd), (PVOID*)&cmd, &cmdLen));
 
+	void* outbuf;
+	size_t outlen;
+	NT_RETURN_IF_NTSTATUS_FAILED(WdfRequestRetrieveOutputBuffer(Request, sizeof(*cmd), &outbuf, &outlen));
+	NT_ANALYSIS_ASSUME(outlen >= sizeof(*cmd));
+
 	RtlZeroMemory(DeviceContext->inflightCommand, 0x200/*TODO*/);
 	memcpy(DeviceContext->inflightCommand, cmd, cmdLen);
 
@@ -98,13 +103,14 @@ NTSTATUS CrosECIoctlXCmd(_In_ WDFDEVICE Device, _In_ PDEVICE_CONTEXT DeviceConte
 		DeviceContext->inflightCommand->insize = res;
 		res = 0; // propagate it to the client
 	}
+	else {
+		DeviceContext->inflightCommand->insize = 0; // Tell the client that nothing was received
+	}
+
 	DeviceContext->inflightCommand->result = res;
+
 	int requiredReplySize = sizeof(struct cros_ec_command_v2) + DeviceContext->inflightCommand->insize;
 
-	void* outbuf;
-	size_t outlen;
-	NT_RETURN_IF_NTSTATUS_FAILED(WdfRequestRetrieveOutputBuffer(Request, sizeof(*cmd), &outbuf, &outlen));
-	NT_ANALYSIS_ASSUME(outlen >= sizeof(*cmd));
 	memcpy(outbuf, DeviceContext->inflightCommand, min(requiredReplySize, outlen));
 	WdfRequestSetInformation(Request, requiredReplySize);
 	return STATUS_SUCCESS;
@@ -114,12 +120,26 @@ NTSTATUS CrosECIoctlReadMem(_In_ WDFDEVICE Device, _In_ PDEVICE_CONTEXT DeviceCo
 	(void)DeviceContext;
 	struct cros_ec_readmem_v2* rq;
 	NT_RETURN_IF_NTSTATUS_FAILED(WdfRequestRetrieveInputBuffer(Request, sizeof(*rq), (PVOID*)&rq, NULL));
-
-	ECReadMemoryLPC(Device, rq->offset, rq->buffer, rq->bytes);
-
 	struct cros_ec_readmem_v2* rs;
 	NT_RETURN_IF_NTSTATUS_FAILED(WdfRequestRetrieveOutputBuffer(Request, sizeof(*rs), (PVOID*)&rs, NULL));
-	memcpy(rs, rq, sizeof(rs));
+
+	rs->offset = rq->offset;
+	rs->bytes = rq->bytes;
+	if (rq->bytes > 0) {
+		// Read specified bytes
+		ECReadMemoryLPC(Device, rq->offset, rs->buffer, rq->bytes);
+	}
+	else {
+		int i = 0;
+		UCHAR* s = &rs->buffer[0];
+		while (i < CROSEC_MEMMAP_SIZE) {
+			ECReadMemoryLPC(Device, rq->offset + i, s, 1);
+			++i;
+			if (!*s) { break; }
+		}
+		rs->bytes = i;
+	}
+
 	WdfRequestSetInformation(Request, sizeof(*rs));
 	return STATUS_SUCCESS;
 }
