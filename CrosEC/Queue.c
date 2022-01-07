@@ -85,17 +85,26 @@ Return Value:
 	return status;
 }
 
+#define CROSEC_CMD_MAX (sizeof(struct cros_ec_command_v2) + CROSEC_CMD_MAX_REQUEST)
+
 NTSTATUS CrosECIoctlXCmd(_In_ WDFDEVICE Device, _In_ PDEVICE_CONTEXT DeviceContext, _In_ WDFREQUEST Request) {
 	struct cros_ec_command_v2* cmd;
 	size_t cmdLen;
 	NT_RETURN_IF_NTSTATUS_FAILED(WdfRequestRetrieveInputBuffer(Request, sizeof(cmd), (PVOID*)&cmd, &cmdLen));
 
 	void* outbuf;
-	size_t outlen;
-	NT_RETURN_IF_NTSTATUS_FAILED(WdfRequestRetrieveOutputBuffer(Request, sizeof(*cmd), &outbuf, &outlen));
-	NT_ANALYSIS_ASSUME(outlen >= sizeof(*cmd));
+	size_t outLen;
+	NT_RETURN_IF_NTSTATUS_FAILED(WdfRequestRetrieveOutputBuffer(Request, sizeof(*cmd), &outbuf, &outLen));
+	NT_ANALYSIS_ASSUME(outLen >= sizeof(*cmd));
 
-	RtlZeroMemory(DeviceContext->inflightCommand, 0x200/*TODO*/);
+	// User tried to send/receive too much data
+	NT_RETURN_IF(STATUS_BUFFER_OVERFLOW, cmdLen > CROSEC_CMD_MAX);
+	NT_RETURN_IF(STATUS_BUFFER_OVERFLOW, outLen > CROSEC_CMD_MAX);
+	// User tried to send/receive more bytes than they offered in storage
+	NT_RETURN_IF(STATUS_BUFFER_TOO_SMALL, cmdLen < (sizeof(struct cros_ec_command_v2) + cmd->outsize));
+	NT_RETURN_IF(STATUS_BUFFER_TOO_SMALL, outLen < (sizeof(struct cros_ec_command_v2) + cmd->insize));
+
+	RtlZeroMemory(DeviceContext->inflightCommand, CROSEC_CMD_MAX);
 	memcpy(DeviceContext->inflightCommand, cmd, cmdLen);
 
 	int res = ECSendCommandLPCv3(Device, cmd->command, cmd->version, cmd->data, cmd->outsize, DeviceContext->inflightCommand->data, cmd->insize);
@@ -111,7 +120,7 @@ NTSTATUS CrosECIoctlXCmd(_In_ WDFDEVICE Device, _In_ PDEVICE_CONTEXT DeviceConte
 
 	int requiredReplySize = sizeof(struct cros_ec_command_v2) + DeviceContext->inflightCommand->insize;
 
-	memcpy(outbuf, DeviceContext->inflightCommand, min(requiredReplySize, outlen));
+	memcpy(outbuf, DeviceContext->inflightCommand, requiredReplySize);
 	WdfRequestSetInformation(Request, requiredReplySize);
 	return STATUS_SUCCESS;
 }
