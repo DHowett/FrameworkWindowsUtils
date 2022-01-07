@@ -14,6 +14,8 @@ Environment:
 
 --*/
 
+#pragma once
+
 #include "public.h"
 #include "EC.h"
 

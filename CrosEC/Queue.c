@@ -19,6 +19,9 @@ Environment:
 
 #include "EC.h"
 
+NTSTATUS CrosECIoctlXCmd(_In_ WDFDEVICE Device, _In_ PDEVICE_CONTEXT DeviceContext, _In_ WDFREQUEST Request);
+NTSTATUS CrosECIoctlReadMem(_In_ WDFDEVICE Device, _In_ PDEVICE_CONTEXT DeviceContext, _In_ WDFREQUEST Request);
+
 #ifdef ALLOC_PRAGMA
 #pragma alloc_text (PAGE, CrosECQueueInitialize)
 #endif
@@ -82,6 +85,45 @@ Return Value:
 	return status;
 }
 
+NTSTATUS CrosECIoctlXCmd(_In_ WDFDEVICE Device, _In_ PDEVICE_CONTEXT DeviceContext, _In_ WDFREQUEST Request) {
+	struct cros_ec_command_v2* cmd;
+	size_t cmdLen;
+	NT_RETURN_IF_NTSTATUS_FAILED(WdfRequestRetrieveInputBuffer(Request, sizeof(cmd), (PVOID*)&cmd, &cmdLen));
+
+	RtlZeroMemory(DeviceContext->inflightCommand, 0x200/*TODO*/);
+	memcpy(DeviceContext->inflightCommand, cmd, cmdLen);
+
+	int res = ECSendCommandLPCv3(Device, cmd->command, cmd->version, cmd->data, cmd->outsize, DeviceContext->inflightCommand->data, cmd->insize);
+	if (res > 0) {
+		DeviceContext->inflightCommand->insize = res;
+		res = 0; // propagate it to the client
+	}
+	DeviceContext->inflightCommand->result = res;
+	int requiredReplySize = sizeof(struct cros_ec_command_v2) + DeviceContext->inflightCommand->insize;
+
+	void* outbuf;
+	size_t outlen;
+	NT_RETURN_IF_NTSTATUS_FAILED(WdfRequestRetrieveOutputBuffer(Request, sizeof(*cmd), &outbuf, &outlen));
+	NT_ANALYSIS_ASSUME(outlen >= sizeof(*cmd));
+	memcpy(outbuf, DeviceContext->inflightCommand, min(requiredReplySize, outlen));
+	WdfRequestSetInformation(Request, requiredReplySize);
+	return STATUS_SUCCESS;
+}
+
+NTSTATUS CrosECIoctlReadMem(_In_ WDFDEVICE Device, _In_ PDEVICE_CONTEXT DeviceContext, _In_ WDFREQUEST Request) {
+	(void)DeviceContext;
+	struct cros_ec_readmem_v2* rq;
+	NT_RETURN_IF_NTSTATUS_FAILED(WdfRequestRetrieveInputBuffer(Request, sizeof(*rq), (PVOID*)&rq, NULL));
+
+	ECReadMemoryLPC(Device, rq->offset, rq->buffer, rq->bytes);
+
+	struct cros_ec_readmem_v2* rs;
+	NT_RETURN_IF_NTSTATUS_FAILED(WdfRequestRetrieveOutputBuffer(Request, sizeof(*rs), (PVOID*)&rs, NULL));
+	memcpy(rs, rq, sizeof(rs));
+	WdfRequestSetInformation(Request, sizeof(*rs));
+	return STATUS_SUCCESS;
+}
+
 VOID
 CrosECEvtIoDeviceControl(
 	_In_ WDFQUEUE Queue,
@@ -122,49 +164,20 @@ Return Value:
 
 	WDFDEVICE device = WdfIoQueueGetDevice(Queue);
 	PDEVICE_CONTEXT deviceContext = DeviceGetContext(device);
+	NTSTATUS Status = STATUS_INVALID_PARAMETER;
 
 	switch (IoControlCode) {
 	case IOCTL_CROSEC_XCMD: {
-		struct cros_ec_command_v2* cmd;
-		size_t cmdLen;
-		WdfRequestRetrieveInputBuffer(Request, sizeof(cmd), (PVOID*)&cmd, &cmdLen);
-
-		RtlZeroMemory(deviceContext->inflightCommand, 0x200/*TODO*/);
-		memcpy(deviceContext->inflightCommand, cmd, InputBufferLength);
-
-		int res = ECSendCommandLPCv3(device, cmd->command, cmd->version, cmd->data, cmd->outsize, deviceContext->inflightCommand->data, cmd->insize);
-		if (res > 0) {
-			deviceContext->inflightCommand->insize = res;
-			res = 0; // propagate it to the client
-		}
-		deviceContext->inflightCommand->result = res;
-		int requiredReplySize = sizeof(struct cros_ec_command_v2) + deviceContext->inflightCommand->insize;
-
-		WDFMEMORY OutputMem;
-		WdfRequestRetrieveOutputMemory(Request, &OutputMem);
-		WdfMemoryCopyFromBuffer(OutputMem, 0, deviceContext->inflightCommand, min(requiredReplySize, OutputBufferLength));
-		WdfRequestSetInformation(Request, requiredReplySize);
+		Status = CrosECIoctlXCmd(device, deviceContext, Request);
 		break;
 	}
 	case IOCTL_CROSEC_RDMEM: {
-		struct cros_ec_readmem_v2* rq;
-		WdfRequestRetrieveInputBuffer(Request, sizeof(*rq), (PVOID*)&rq, NULL);
-
-		ECReadMemoryLPC(device, rq->offset, rq->buffer, rq->bytes);
-
-		struct cros_ec_readmem_v2* rs;
-		WdfRequestRetrieveOutputBuffer(Request, sizeof(*rs), (PVOID*)&rs, NULL);
-		memcpy(rs, rq, sizeof(rs));
-		WdfRequestSetInformation(Request, sizeof(*rs));
-
+		Status = CrosECIoctlReadMem(device, deviceContext, Request);
 		break;
 	}
-	default:
-		WdfRequestComplete(Request, STATUS_INVALID_PARAMETER);
-		return;
 	}
 
-	WdfRequestComplete(Request, STATUS_SUCCESS);
+	WdfRequestComplete(Request, Status);
 
 	return;
 }
