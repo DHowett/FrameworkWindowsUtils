@@ -1,18 +1,4 @@
-/*++
-
-Module Name:
-
-	Trace.h
-
-Abstract:
-
-	Header file for the debug tracing related function defintions and macros.
-
-Environment:
-
-	Kernel mode
-
---*/
+#pragma once
 
 //
 // Define the tracing flags.

@@ -35,37 +35,6 @@
 #define EECRESULT 1000
 
 #include <pshpack1.h>
-/*
- * @version: Command version number (often 0)
- * @command: Command to send (EC_CMD_...)
- * @outsize: Outgoing length in bytes
- * @insize: Max number of bytes to accept from EC
- * @result: EC's response to the command (separate from communication failure)
- * @data: Where to put the incoming data from EC and outgoing data to EC
- */
-struct cros_ec_command_v2 {
-	ULONG version;
-	ULONG command;
-	ULONG outsize;
-	ULONG insize;
-	ULONG result;
-#pragma warning(suppress: 4200)
-	UCHAR data[0];
-};
-
-/*
- * @offset: within EC_LPC_ADDR_MEMMAP region
- * @bytes: number of bytes to read. zero means "read a string" (including '\0')
- *         (at most only EC_MEMMAP_SIZE bytes can be read)
- * @buffer: where to store the result
- * ioctl returns the number of bytes read, negative on error
- */
-struct cros_ec_readmem_v2 {
-	ULONG offset;
-	ULONG bytes;
-	UCHAR buffer[EC_MEMMAP_SIZE];
-};
-
 struct ec_host_request {
 	UCHAR struct_version;
 	UCHAR checksum;
@@ -73,7 +42,7 @@ struct ec_host_request {
 	UCHAR command_version;
 	UCHAR reserved;
 	USHORT data_len;
-};
+} _ec_align4;
 
 struct ec_host_response {
 	UCHAR struct_version;
