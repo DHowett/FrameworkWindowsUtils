@@ -24,7 +24,7 @@ static __inline unsigned short inw(unsigned int __port)
 	return READ_PORT_USHORT((PUSHORT)__port);
 }
 
-typedef enum _EC_TRANSMIT_DIRECTION { EC_TX_WRITE, EC_TX_READ } EC_TRANSMIT_DIRECTION;
+typedef enum _EC_TRANSFER_DIRECTION { EC_XFER_WRITE, EC_XFER_READ } EC_TRANSFER_DIRECTION;
 
 // As defined in MEC172x section 16.8.3
 // https://ww1.microchip.com/downloads/en/DeviceDoc/MEC172x-Data-Sheet-DS00003583C.pdf
@@ -38,7 +38,7 @@ typedef enum _EC_TRANSMIT_DIRECTION { EC_TX_WRITE, EC_TX_READ } EC_TRANSMIT_DIRE
 #define FW_EC_EC_DATA_REGISTER2         0x0806
 #define FW_EC_EC_DATA_REGISTER3         0x0807
 
-static int ECTransmit(WDFDEVICE originatingDevice, EC_TRANSMIT_DIRECTION direction, USHORT address, char* data, USHORT size)
+static int ECTransfer(WDFDEVICE originatingDevice, EC_TRANSFER_DIRECTION direction, USHORT address, char* data, USHORT size)
 {
 	UNREFERENCED_PARAMETER(originatingDevice);
 	int pos = 0;
@@ -48,9 +48,9 @@ static int ECTransmit(WDFDEVICE originatingDevice, EC_TRANSMIT_DIRECTION directi
 		/* Unaligned start address */
 		for (int i = address % 4; i < 4; ++i) {
 			char* storage = &data[pos++];
-			if (direction == EC_TX_WRITE)
+			if (direction == EC_XFER_WRITE)
 				outb(*storage, FW_EC_EC_DATA_REGISTER0 + i);
-			else if (direction == EC_TX_READ)
+			else if (direction == EC_XFER_READ)
 				*storage = inb(FW_EC_EC_DATA_REGISTER0 + i);
 		}
 		address = (address + 4) & 0xFFFC; // Up to next multiple of 4
@@ -61,12 +61,12 @@ static int ECTransmit(WDFDEVICE originatingDevice, EC_TRANSMIT_DIRECTION directi
 		// Chunk writing for anything large, 4 bytes at a time
 		// Writing to 804, 806 automatically increments dest address
 		while (size - pos >= 4) {
-			if (direction == EC_TX_WRITE) {
+			if (direction == EC_XFER_WRITE) {
 				memcpy(temp, &data[pos], sizeof(temp));
 				outw(temp[0], FW_EC_EC_DATA_REGISTER0);
 				outw(temp[1], FW_EC_EC_DATA_REGISTER2);
 			}
-			else if (direction == EC_TX_READ) {
+			else if (direction == EC_XFER_READ) {
 				temp[0] = inw(FW_EC_EC_DATA_REGISTER0);
 				temp[1] = inw(FW_EC_EC_DATA_REGISTER2);
 				memcpy(&data[pos], temp, sizeof(temp));
@@ -82,9 +82,9 @@ static int ECTransmit(WDFDEVICE originatingDevice, EC_TRANSMIT_DIRECTION directi
 		outw((address & 0xFFFC) | FW_EC_BYTE_ACCESS, FW_EC_EC_ADDRESS_REGISTER0);
 		for (int i = 0; i < (size - pos); ++i) {
 			char* storage = &data[pos + i];
-			if (direction == EC_TX_WRITE)
+			if (direction == EC_XFER_WRITE)
 				outb(*storage, FW_EC_EC_DATA_REGISTER0 + i);
-			else if (direction == EC_TX_READ)
+			else if (direction == EC_XFER_READ)
 				*storage = inb(FW_EC_EC_DATA_REGISTER0 + i);
 		}
 	}
@@ -136,7 +136,7 @@ static UCHAR ECChecksumBuffer(char* data, int size)
 
 int ECReadMemoryLPC(WDFDEVICE originatingDevice, int offset, void* buffer, int length)
 {
-	return ECTransmit(originatingDevice, EC_TX_READ, (USHORT)(offset + 0x100), buffer, (USHORT)length);
+	return ECTransfer(originatingDevice, EC_XFER_READ, (USHORT)(offset + 0x100), buffer, (USHORT)length);
 }
 
 int ECSendCommandLPCv3(WDFDEVICE originatingDevice, int command, int version, const void* outdata,
@@ -176,7 +176,7 @@ int ECSendCommandLPCv3(WDFDEVICE originatingDevice, int command, int version, co
 		return -EC_RES_ERROR;
 	}
 
-	ECTransmit(originatingDevice, EC_TX_WRITE, 0, u.data, (USHORT)(outsize + sizeof(u.rq)));
+	ECTransfer(originatingDevice, EC_XFER_WRITE, 0, u.data, (USHORT)(outsize + sizeof(u.rq)));
 
 	/* Start the command */
 	outb(EC_COMMAND_PROTOCOL_3, EC_LPC_ADDR_HOST_CMD);
@@ -192,7 +192,7 @@ int ECSendCommandLPCv3(WDFDEVICE originatingDevice, int command, int version, co
 	}
 
 	csum = 0;
-	ECTransmit(originatingDevice, EC_TX_READ, 0, r.data, sizeof(r.rs));
+	ECTransfer(originatingDevice, EC_XFER_READ, 0, r.data, sizeof(r.rs));
 
 	if (r.rs.struct_version != EC_HOST_RESPONSE_VERSION) {
 		return -EC_RES_INVALID_RESPONSE;
@@ -207,7 +207,7 @@ int ECSendCommandLPCv3(WDFDEVICE originatingDevice, int command, int version, co
 	}
 
 	if (r.rs.data_len > 0) {
-		ECTransmit(originatingDevice, EC_TX_READ, 8, r.data + sizeof(r.rs), r.rs.data_len);
+		ECTransfer(originatingDevice, EC_XFER_READ, 8, r.data + sizeof(r.rs), r.rs.data_len);
 		if (ECChecksumBuffer(r.data, sizeof(r.rs) + r.rs.data_len)) {
 			return -EC_RES_INVALID_CHECKSUM;
 		}
