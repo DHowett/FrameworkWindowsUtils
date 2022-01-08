@@ -8,22 +8,6 @@
 #include <wil/result_macros.h>
 #include "../CrosEC/Public.h"
 
-struct cros_ec_command_v2 {
-	ULONG version;
-	ULONG command;
-	ULONG outsize;
-	ULONG insize;
-	ULONG result;
-#pragma warning(suppress: 4200)
-	UCHAR data[0];
-};
-
-struct cros_ec_readmem_v2 {
-	ULONG offset;
-	ULONG bytes;
-	UCHAR buffer[0xFF];
-};
-
 void hexdump(const uint8_t* data, int len)
 {
 	int i, j;
@@ -57,7 +41,8 @@ int main()
 		THROW_LAST_ERROR_IF(!device);
 
 		
-		cros_ec_command_v2* cmd = (cros_ec_command_v2*)calloc(1, sizeof(cros_ec_command_v2) + 255);
+		size_t size = sizeof(CROSEC_COMMAND) + CROSEC_CMD_MAX_REQUEST;
+		PCROSEC_COMMAND cmd = (PCROSEC_COMMAND)calloc(1, size);
 		cmd->command = 0x4;
 		cmd->insize = 255;
 		cmd->outsize = 0;
@@ -66,15 +51,15 @@ int main()
 
 		std::cout << "OUT: " << cmd->command << "|" << cmd->result << std::endl;
 		DWORD retb{};
-		THROW_LAST_ERROR_IF(!DeviceIoControl(device.get(), IOCTL_CROSEC_XCMD, cmd, sizeof(cros_ec_command_v2) + 255, cmd, sizeof(cros_ec_command_v2) + 255, &retb, nullptr));
-		std::cout << "IN : " << cmd->command << "|" << cmd->result << std::endl;
-		std::cout << "IN_: " << (const char*)cmd->data << std::endl;
+		THROW_LAST_ERROR_IF(!DeviceIoControl(device.get(), IOCTL_CROSEC_XCMD, cmd, (DWORD)size, cmd, (DWORD)size, &retb, nullptr));
+		std::cout << "IN_: " << cmd->command << "|" << cmd->result << std::endl;
+		std::cout << "IN_: " << (char*)(CROSEC_COMMAND_DATA(cmd)) << std::endl;
 		
-		cros_ec_readmem_v2 rm{};
+		CROSEC_READMEM rm{};
 		rm.bytes = 0xfe;
 		rm.offset = 0;
 		//DWORD retb{};
-		THROW_LAST_ERROR_IF(!DeviceIoControl(device.get(), IOCTL_CROSEC_RDMEM, &rm, sizeof(cros_ec_readmem_v2), &rm, sizeof(cros_ec_readmem_v2), &retb, nullptr));
+		THROW_LAST_ERROR_IF(!DeviceIoControl(device.get(), IOCTL_CROSEC_RDMEM, &rm, sizeof(rm), &rm, sizeof(rm), &retb, nullptr));
 		hexdump(rm.buffer, rm.bytes);
 	}
 	catch (std::runtime_error e) {
