@@ -142,7 +142,7 @@ NTSTATUS CrosECIoctlReadMem(_In_ WDFDEVICE Device, _In_ PDEVICE_CONTEXT DeviceCo
 		while (i < CROSEC_MEMMAP_SIZE) {
 			ECReadMemoryLPC(Device, rq->offset + i, s, 1);
 			++i;
-			if (!*s) { break; }
+			if (!*s++) { break; }
 		}
 		rs->bytes = i;
 	}
