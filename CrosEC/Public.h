@@ -61,7 +61,7 @@ typedef struct _CROSEC_COMMAND {
  * @buffer: where to store the result
  * ioctl returns the number of bytes read, negative on error
  */
-struct _CROSEC_READMEM {
+typedef struct _CROSEC_READMEM {
 	ULONG offset;
 	ULONG bytes;
 	UCHAR buffer[CROSEC_MEMMAP_SIZE];

@@ -125,13 +125,15 @@ NTSTATUS CrosECIoctlXCmd(_In_ WDFDEVICE Device, _In_ PDEVICE_CONTEXT DeviceConte
 
 NTSTATUS CrosECIoctlReadMem(_In_ WDFDEVICE Device, _In_ PDEVICE_CONTEXT DeviceContext, _In_ WDFREQUEST Request) {
 	(void)DeviceContext;
-	struct cros_ec_readmem_v2* rq;
+	PCROSEC_READMEM rq, rs;
 	NT_RETURN_IF_NTSTATUS_FAILED(WdfRequestRetrieveInputBuffer(Request, sizeof(*rq), (PVOID*)&rq, NULL));
-	struct cros_ec_readmem_v2* rs;
 	NT_RETURN_IF_NTSTATUS_FAILED(WdfRequestRetrieveOutputBuffer(Request, sizeof(*rs), (PVOID*)&rs, NULL));
+
+	NT_RETURN_IF(STATUS_INVALID_ADDRESS, (rq->offset + rq->bytes) > CROSEC_MEMMAP_SIZE);
 
 	rs->offset = rq->offset;
 	rs->bytes = rq->bytes;
+
 	if (rq->bytes > 0) {
 		// Read specified bytes
 		ECReadMemoryLPC(Device, rq->offset, rs->buffer, rq->bytes);
