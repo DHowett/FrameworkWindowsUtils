@@ -10,7 +10,6 @@ NTSTATUS CrosECCreateDevice(_Inout_ PWDFDEVICE_INIT DeviceInit) {
 	WDF_OBJECT_ATTRIBUTES deviceAttributes;
 	PDEVICE_CONTEXT deviceContext;
 	WDFDEVICE device;
-	NTSTATUS status;
 
 	PAGED_CODE();
 
@@ -21,26 +20,22 @@ NTSTATUS CrosECCreateDevice(_Inout_ PWDFDEVICE_INIT DeviceInit) {
 	DECLARE_CONST_UNICODE_STRING(Name, L"\\Device\\CrosEC");
 	WdfDeviceInitAssignName(DeviceInit, &Name);
 
-	status = WdfDeviceCreate(&DeviceInit, &deviceAttributes, &device);
+	NT_RETURN_IF_NTSTATUS_FAILED(WdfDeviceCreate(&DeviceInit, &deviceAttributes, &device));
 
-	if (NT_SUCCESS(status)) {
-		deviceContext = DeviceGetContext(device);
+	deviceContext = DeviceGetContext(device);
 
-		deviceContext->inflightCommand = ExAllocatePoolWithTag(NonPagedPool, CROSEC_CMD_MAX, CROS_EC_POOL_TAG);
-		KeInitializeTimer(&deviceContext->waitTimer);
+	deviceContext->inflightCommand = ExAllocatePoolWithTag(NonPagedPool, CROSEC_CMD_MAX, CROS_EC_POOL_TAG);
+	KeInitializeTimer(&deviceContext->waitTimer);
 
-		status = WdfDeviceCreateDeviceInterface(
-			device,
-			&GUID_DEVINTERFACE_CrosEC,
-			NULL // ReferenceString
-		);
+	NT_RETURN_IF_NTSTATUS_FAILED(WdfDeviceCreateDeviceInterface(
+		device,
+		&GUID_DEVINTERFACE_CrosEC,
+		NULL /* ReferenceString */ )
+	);
 
-		if (NT_SUCCESS(status)) {
-			status = CrosECQueueInitialize(device);
-		}
-	}
+	NT_RETURN_IF_NTSTATUS_FAILED(CrosECQueueInitialize(device));
 
-	return status;
+	return STATUS_SUCCESS;
 }
 
 NTSTATUS CrosECEvtDeviceContextCleanup(_In_ WDFOBJECT object) {
