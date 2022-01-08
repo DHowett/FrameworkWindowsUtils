@@ -102,7 +102,7 @@ NTSTATUS CrosECIoctlXCmd(_In_ WDFDEVICE Device, _In_ PDEVICE_CONTEXT DeviceConte
 	NT_RETURN_IF(STATUS_BUFFER_TOO_SMALL, cmdLen < (sizeof(CROSEC_COMMAND) + cmd->outsize));
 	NT_RETURN_IF(STATUS_BUFFER_TOO_SMALL, outLen < (sizeof(CROSEC_COMMAND) + cmd->insize));
 
-	RtlZeroMemory(DeviceContext->inflightCommand, CROSEC_CMD_MAX);
+	memset(DeviceContext->inflightCommand, 0, CROSEC_CMD_MAX);
 	memcpy(DeviceContext->inflightCommand, cmd, cmdLen);
 
 	int res = ECSendCommandLPCv3(Device, cmd->command, cmd->version, CROSEC_COMMAND_DATA(cmd), cmd->outsize, CROSEC_COMMAND_DATA(DeviceContext->inflightCommand), cmd->insize);
@@ -117,6 +117,9 @@ NTSTATUS CrosECIoctlXCmd(_In_ WDFDEVICE Device, _In_ PDEVICE_CONTEXT DeviceConte
 	DeviceContext->inflightCommand->result = res;
 
 	int requiredReplySize = sizeof(CROSEC_COMMAND) + DeviceContext->inflightCommand->insize;
+	if (requiredReplySize > outLen) {
+		return STATUS_BUFFER_TOO_SMALL;
+	}
 
 	memcpy(outbuf, DeviceContext->inflightCommand, requiredReplySize);
 	WdfRequestSetInformation(Request, requiredReplySize);
