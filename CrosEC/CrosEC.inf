@@ -38,6 +38,12 @@ CopyFiles=Drivers_Dir
 [Drivers_Dir]
 CrosEC.sys
 
+[CrosEC_Device.NT.HW]
+Addreg=CrosEC_Device_SDDL_AddReg
+
+[CrosEC_Device_SDDL_AddReg]
+HKR,,Security,,"D:P(A;;GA;;;SY)(A;;GA;;;BA)"  ;System and Admin Only
+
 ;-------------- Service installation
 [CrosEC_Device.NT.Services]
 AddService = CrosEC,%SPSVCINST_ASSOCSERVICE%, CrosEC_Service_Inst
