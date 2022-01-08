@@ -5,6 +5,7 @@
 #pragma alloc_text (INIT, DriverEntry)
 #pragma alloc_text (PAGE, CrosECEvtDeviceAdd)
 #pragma alloc_text (PAGE, CrosECEvtDriverContextCleanup)
+#pragma alloc_text (PAGE, CrosECEvtDriverUnload)
 #endif
 
 NTSTATUS DriverEntry(_In_ PDRIVER_OBJECT DriverObject, _In_ PUNICODE_STRING RegistryPath) {
@@ -20,14 +21,17 @@ NTSTATUS DriverEntry(_In_ PDRIVER_OBJECT DriverObject, _In_ PUNICODE_STRING Regi
 	attributes.EvtCleanupCallback = CrosECEvtDriverContextCleanup;
 
 	WDF_DRIVER_CONFIG_INIT(&config,
-		CrosECEvtDeviceAdd
+		NULL
 	);
+	config.DriverInitFlags = WdfDriverInitNonPnpDriver;
+	config.EvtDriverUnload = CrosECEvtDriverUnload;
 
+	WDFDRIVER hDriver;
 	status = WdfDriverCreate(DriverObject,
 		RegistryPath,
 		&attributes,
 		&config,
-		WDF_NO_HANDLE
+		&hDriver
 	);
 
 	if (!NT_SUCCESS(status)) {
@@ -37,6 +41,14 @@ NTSTATUS DriverEntry(_In_ PDRIVER_OBJECT DriverObject, _In_ PUNICODE_STRING Regi
 	}
 
 	TraceEvents(TRACE_LEVEL_INFORMATION, TRACE_DRIVER, "%!FUNC! Exit");
+
+#if 1 // CONTROL DEVICE?
+	PWDFDEVICE_INIT CtlDeviceInit;
+	CtlDeviceInit = WdfControlDeviceInitAllocate(hDriver, &SDDL_DEVOBJ_SYS_ALL_ADM_ALL);
+	if (FAILED_NTSTATUS(status = CrosECCreateDevice(CtlDeviceInit))) {
+		WdfDeviceInitFree(CtlDeviceInit);
+	}
+#endif
 
 	return status;
 }
@@ -65,4 +77,9 @@ VOID CrosECEvtDriverContextCleanup(_In_ WDFOBJECT DriverObject) {
 	TraceEvents(TRACE_LEVEL_INFORMATION, TRACE_DRIVER, "%!FUNC! Entry");
 
 	WPP_CLEANUP(WdfDriverWdmGetDriverObject((WDFDRIVER)DriverObject));
+}
+
+VOID CrosECEvtDriverUnload(_In_ WDFDRIVER Driver) {
+	UNREFERENCED_PARAMETER(Driver);
+	PAGED_CODE();
 }

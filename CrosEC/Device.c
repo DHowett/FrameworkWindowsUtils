@@ -27,13 +27,17 @@ NTSTATUS CrosECCreateDevice(_Inout_ PWDFDEVICE_INIT DeviceInit) {
 	deviceContext->inflightCommand = ExAllocatePoolWithTag(NonPagedPool, CROSEC_CMD_MAX, CROS_EC_POOL_TAG);
 	KeInitializeTimer(&deviceContext->waitTimer);
 
+#if 0
 	NT_RETURN_IF_NTSTATUS_FAILED(WdfDeviceCreateDeviceInterface(
 		device,
 		&GUID_DEVINTERFACE_CrosEC,
 		NULL /* ReferenceString */ )
 	);
+#endif
 
 	NT_RETURN_IF_NTSTATUS_FAILED(CrosECQueueInitialize(device));
+
+	WdfControlFinishInitializing(device);
 
 	return STATUS_SUCCESS;
 }

@@ -26,26 +26,20 @@ WdfCoInstaller$KMDFCOINSTALLERVERSION$.dll=1 ; make sure the number matches with
 ; Install Section
 ;*****************************************
 
-[Manufacturer]
-%ManufacturerName%=Standard,NT$ARCH$
-
-[Standard.NT$ARCH$]
-%CrosEC.DeviceDesc%=CrosEC_Device, Root\CrosEC ; TODO: edit hw-id
-
-[CrosEC_Device.NT]
+[DefaultInstall.NT]
 CopyFiles=Drivers_Dir
 
 [Drivers_Dir]
 CrosEC.sys
 
-[CrosEC_Device.NT.HW]
+[DefaultInstall.NT.HW]
 Addreg=CrosEC_Device_SDDL_AddReg
 
 [CrosEC_Device_SDDL_AddReg]
 HKR,,Security,,"D:P(A;;GA;;;SY)(A;;GA;;;BA)"  ;System and Admin Only
 
 ;-------------- Service installation
-[CrosEC_Device.NT.Services]
+[DefaultInstall.NT.Services]
 AddService = CrosEC,%SPSVCINST_ASSOCSERVICE%, CrosEC_Service_Inst
 
 ; -------------- CrosEC driver install sections
@@ -60,7 +54,7 @@ ServiceBinary  = %12%\CrosEC.sys
 ;--- CrosEC_Device Coinstaller installation ------
 ;
 
-[CrosEC_Device.NT.CoInstallers]
+[DefaultInstall.NT.CoInstallers]
 AddReg=CrosEC_Device_CoInstaller_AddReg
 CopyFiles=CrosEC_Device_CoInstaller_CopyFiles
 
