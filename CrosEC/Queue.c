@@ -10,6 +10,11 @@ NTSTATUS CrosECIoctlReadMem(_In_ WDFDEVICE Device, _In_ PDEVICE_CONTEXT DeviceCo
 #pragma alloc_text (PAGE, CrosECQueueInitialize)
 #endif
 
+#define EC_CMD_USB_PD_FW_UPDATE 0x0110
+#define EC_CMD_FLASH_WRITE 0x0012
+#define EC_CMD_FLASH_ERASE 0x0013
+#define EC_CMD_FLASH_PROTECT 0x0015
+
 static NTSTATUS sCrosECErrorCodeMapping[] = {
 	[EC_RES_SUCCESS] = STATUS_SUCCESS,
 	[EC_RES_INVALID_COMMAND] = STATUS_INVALID_PARAMETER,
@@ -85,6 +90,16 @@ NTSTATUS CrosECIoctlXCmd(_In_ WDFDEVICE Device, _In_ PDEVICE_CONTEXT DeviceConte
 	// User tried to send/receive more bytes than they offered in storage
 	NT_RETURN_IF(STATUS_BUFFER_TOO_SMALL, cmdLen < (sizeof(CROSEC_COMMAND) + cmd->outsize));
 	NT_RETURN_IF(STATUS_BUFFER_TOO_SMALL, outLen < (sizeof(CROSEC_COMMAND) + cmd->insize));
+
+	// I know this seems overprotective, and that I am wielding too much power over you,
+	// but I don't think that the Windows driver should let you erase your flash.
+	// Since the device grants access to all administrators, this would put you
+	// one bad apple away from bricking your machine. Sorry.
+	NT_RETURN_IF(STATUS_ACCESS_DENIED,
+		cmd->command == EC_CMD_FLASH_ERASE
+		|| cmd->command == EC_CMD_FLASH_PROTECT
+		|| cmd->command == EC_CMD_FLASH_WRITE
+		|| cmd->command == EC_CMD_USB_PD_FW_UPDATE);
 
 	memset(DeviceContext->inflightCommand, 0, CROSEC_CMD_MAX);
 	memcpy(DeviceContext->inflightCommand, cmd, cmdLen);
