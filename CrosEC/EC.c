@@ -136,14 +136,25 @@ static UCHAR ECChecksumBuffer(char* data, int size)
 
 int ECReadMemoryLPC(WDFDEVICE originatingDevice, int offset, void* buffer, int length)
 {
-	return ECTransfer(originatingDevice, EC_XFER_READ, (USHORT)(offset + 0x100), buffer, (USHORT)length);
+	PDEVICE_CONTEXT deviceContext = DeviceGetContext(originatingDevice);
+	int res = 0;
+
+	KeAcquireGuardedMutex(&deviceContext->mutex);
+	res = ECTransfer(originatingDevice, EC_XFER_READ, (USHORT)(offset + 0x100), buffer, (USHORT)length);
+	KeReleaseGuardedMutex(&deviceContext->mutex);
+
+	return res;
 }
 
 int ECSendCommandLPCv3(WDFDEVICE originatingDevice, int command, int version, const void* outdata,
 	int outsize, void* indata, int insize)
 {
+	PDEVICE_CONTEXT deviceContext = DeviceGetContext(originatingDevice);
+	int res = EC_RES_SUCCESS;
 	UCHAR csum = 0;
 	int i;
+
+	KeAcquireGuardedMutex(&deviceContext->mutex);
 
 	union {
 		struct ec_host_request rq;
@@ -156,8 +167,10 @@ int ECSendCommandLPCv3(WDFDEVICE originatingDevice, int command, int version, co
 	} r;
 
 	/* Fail if output size is too big */
-	if (outsize + sizeof(u.rq) > EC_LPC_HOST_PACKET_SIZE)
-		return -EC_RES_REQUEST_TRUNCATED;
+	if (outsize + sizeof(u.rq) > EC_LPC_HOST_PACKET_SIZE) {
+		res = -EC_RES_REQUEST_TRUNCATED;
+		goto Out;
+	}
 
 	/* Fill in request packet */
 	/* TODO(crosbug.com/p/23825): This should be common to all protocols */
@@ -173,7 +186,8 @@ int ECSendCommandLPCv3(WDFDEVICE originatingDevice, int command, int version, co
 	u.rq.checksum = (UCHAR)(-csum);
 
 	if (ECWaitForReady(originatingDevice, EC_LPC_ADDR_HOST_CMD, 1000000)) {
-		return -EC_RES_TIMEOUT;
+		res = -EC_RES_TIMEOUT;
+		goto Out;
 	}
 
 	ECTransfer(originatingDevice, EC_XFER_WRITE, 0, u.data, (USHORT)(outsize + sizeof(u.rq)));
@@ -182,37 +196,47 @@ int ECSendCommandLPCv3(WDFDEVICE originatingDevice, int command, int version, co
 	outb(EC_COMMAND_PROTOCOL_3, EC_LPC_ADDR_HOST_CMD);
 
 	if (ECWaitForReady(originatingDevice, EC_LPC_ADDR_HOST_CMD, 1000000)) {
-		return -EC_RES_TIMEOUT;
+		res = -EC_RES_TIMEOUT;
+		goto Out;
 	}
 
 	/* Check result */
 	i = inb(EC_LPC_ADDR_HOST_DATA);
 	if (i) {
-		return -EECRESULT - i;
+		res = -EECRESULT - i;
+		goto Out;
 	}
 
 	csum = 0;
 	ECTransfer(originatingDevice, EC_XFER_READ, 0, r.data, sizeof(r.rs));
 
 	if (r.rs.struct_version != EC_HOST_RESPONSE_VERSION) {
-		return -EC_RES_INVALID_HEADER_VERSION;
+		res = -EC_RES_INVALID_HEADER_VERSION;
+		goto Out;
 	}
 
 	if (r.rs.reserved) {
-		return -EC_RES_INVALID_HEADER;
+		res = -EC_RES_INVALID_HEADER;
+		goto Out;
 	}
 
 	if (r.rs.data_len > insize) {
-		return -EC_RES_RESPONSE_TOO_BIG;
+		res = -EC_RES_RESPONSE_TOO_BIG;
+		goto Out;
 	}
 
 	if (r.rs.data_len > 0) {
 		ECTransfer(originatingDevice, EC_XFER_READ, 8, r.data + sizeof(r.rs), r.rs.data_len);
 		if (ECChecksumBuffer(r.data, sizeof(r.rs) + r.rs.data_len)) {
-			return -EC_RES_INVALID_CHECKSUM;
+			res = -EC_RES_INVALID_CHECKSUM;
+			goto Out;
 		}
 
 		memcpy(indata, r.data + sizeof(r.rs), r.rs.data_len);
 	}
-	return r.rs.data_len;
+	res = r.rs.data_len;
+
+Out:
+	KeReleaseGuardedMutex(&deviceContext->mutex);
+	return res;
 }

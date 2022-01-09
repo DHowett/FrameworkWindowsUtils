@@ -26,6 +26,7 @@ NTSTATUS CrosECCreateDevice(_Inout_ PWDFDEVICE_INIT DeviceInit) {
 
 	deviceContext->inflightCommand = ExAllocatePoolWithTag(NonPagedPool, CROSEC_CMD_MAX, CROS_EC_POOL_TAG);
 	KeInitializeTimer(&deviceContext->waitTimer);
+	KeInitializeGuardedMutex(&deviceContext->mutex);
 
 	NT_RETURN_IF_NTSTATUS_FAILED(WdfDeviceCreateDeviceInterface(
 		device,
