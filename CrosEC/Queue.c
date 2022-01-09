@@ -10,6 +10,30 @@ NTSTATUS CrosECIoctlReadMem(_In_ WDFDEVICE Device, _In_ PDEVICE_CONTEXT DeviceCo
 #pragma alloc_text (PAGE, CrosECQueueInitialize)
 #endif
 
+static NTSTATUS sCrosECErrorCodeMapping[] = {
+	[EC_RES_SUCCESS] = STATUS_SUCCESS,
+	[EC_RES_INVALID_COMMAND] = STATUS_INVALID_PARAMETER,
+	[EC_RES_ERROR] = STATUS_UNSUCCESSFUL,
+	[EC_RES_INVALID_PARAM] = STATUS_INVALID_PARAMETER,
+	[EC_RES_ACCESS_DENIED] = STATUS_ACCESS_DENIED,
+	[EC_RES_INVALID_RESPONSE] = STATUS_DATA_ERROR,
+	[EC_RES_INVALID_VERSION] = STATUS_DATA_ERROR,
+	[EC_RES_INVALID_CHECKSUM] = STATUS_CRC_ERROR,
+	[EC_RES_IN_PROGRESS] = CROSEC_STATUS_IN_PROGRESS,
+	[EC_RES_UNAVAILABLE] = CROSEC_STATUS_UNAVAILABLE,
+	[EC_RES_TIMEOUT] = STATUS_IO_TIMEOUT,
+	[EC_RES_OVERFLOW] = STATUS_BUFFER_OVERFLOW,
+	[EC_RES_INVALID_HEADER] = STATUS_DATA_ERROR,
+	[EC_RES_REQUEST_TRUNCATED] = STATUS_BUFFER_TOO_SMALL,
+	[EC_RES_RESPONSE_TOO_BIG] = STATUS_BUFFER_OVERFLOW,
+	[EC_RES_BUS_ERROR] = STATUS_UNSUCCESSFUL,
+	[EC_RES_BUSY] = STATUS_DEVICE_BUSY,
+	[EC_RES_INVALID_HEADER_VERSION] = STATUS_DATA_ERROR,
+	[EC_RES_INVALID_HEADER_CRC] = STATUS_CRC_ERROR,
+	[EC_RES_INVALID_DATA_CRC] = STATUS_CRC_ERROR,
+	[EC_RES_DUP_UNAVAILABLE] = STATUS_UNSUCCESSFUL,
+};
+
 NTSTATUS CrosECQueueInitialize(_In_ WDFDEVICE Device) {
 	WDFQUEUE queue;
 	NTSTATUS status;
@@ -66,17 +90,20 @@ NTSTATUS CrosECIoctlXCmd(_In_ WDFDEVICE Device, _In_ PDEVICE_CONTEXT DeviceConte
 	memcpy(DeviceContext->inflightCommand, cmd, cmdLen);
 
 	int res = ECSendCommandLPCv3(Device, cmd->command, cmd->version, CROSEC_COMMAND_DATA(cmd), cmd->outsize, CROSEC_COMMAND_DATA(DeviceContext->inflightCommand), cmd->insize);
-	if (res > 0) {
-		DeviceContext->inflightCommand->insize = res;
-		res = 0; // propagate it to the client
-	}
-	else {
-		DeviceContext->inflightCommand->insize = 0; // Tell the client that nothing was received
+
+	if (res < -EECRESULT) {
+		// Propagate a response code from the EC as res (EC result codes are positive)
+		DeviceContext->inflightCommand->result = (-res) - EECRESULT;
+		res = 0; // tell the client we received nothing
+	} else if (res < 0) {
+		// Transform the protocol failure into an NTSTATUS and return early.
+		NT_RETURN_IF(STATUS_FAIL_CHECK, -res > EC_RES_DUP_UNAVAILABLE);
+		return sCrosECErrorCodeMapping[-res];
+	} else {
+		DeviceContext->inflightCommand->result = 0; // 0 = SUCCESS
 	}
 
-	DeviceContext->inflightCommand->result = res;
-
-	int requiredReplySize = sizeof(CROSEC_COMMAND) + DeviceContext->inflightCommand->insize;
+	int requiredReplySize = sizeof(CROSEC_COMMAND) + res;
 	if (requiredReplySize > outLen) {
 		return STATUS_BUFFER_TOO_SMALL;
 	}

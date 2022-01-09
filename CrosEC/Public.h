@@ -12,7 +12,9 @@ DEFINE_GUID(GUID_DEVINTERFACE_CrosEC,
 #define CROSEC_CMD_MAX_REQUEST  0x100
 #define CROSEC_CMD_MAX_RESPONSE 0x100
 #define CROSEC_MEMMAP_SIZE      0xFF
-#define CROSEC_EECRESULT        1000
+
+#define CROSEC_STATUS_IN_PROGRESS ((NTSTATUS)0xE0EC0001) // EC Command in progress
+#define CROSEC_STATUS_UNAVAILABLE ((NTSTATUS)0xE0EC0002) // EC not available
 
 /*
  * @version: Command version number (often 0)
@@ -45,27 +47,3 @@ typedef struct _CROSEC_READMEM {
 	ULONG bytes;
 	UCHAR buffer[CROSEC_MEMMAP_SIZE];
 } *PCROSEC_READMEM, CROSEC_READMEM;
-
-typedef enum _CROSEC_STATUS {
-	CROSEC_RES_SUCCESS = 0,
-	CROSEC_RES_INVALID_COMMAND = 1,
-	CROSEC_RES_ERROR = 2,
-	CROSEC_RES_INVALID_PARAM = 3,
-	CROSEC_RES_ACCESS_DENIED = 4,
-	CROSEC_RES_INVALID_RESPONSE = 5,
-	CROSEC_RES_INVALID_VERSION = 6,
-	CROSEC_RES_INVALID_CHECKSUM = 7,
-	CROSEC_RES_IN_PROGRESS = 8,		/* Accepted, command in progress */
-	CROSEC_RES_UNAVAILABLE = 9,		/* No response available */
-	CROSEC_RES_TIMEOUT = 10,		/* We got a timeout */
-	CROSEC_RES_OVERFLOW = 11,		/* Table / data overflow */
-	CROSEC_RES_INVALID_HEADER = 12,     /* Header contains invalid data */
-	CROSEC_RES_REQUEST_TRUNCATED = 13,  /* Didn't get the entire request */
-	CROSEC_RES_RESPONSE_TOO_BIG = 14,   /* Response was too big to handle */
-	CROSEC_RES_BUS_ERROR = 15,		/* Communications bus error */
-	CROSEC_RES_BUSY = 16,		/* Up but too busy.  Should retry */
-	CROSEC_RES_INVALID_HEADER_VERSION = 17,  /* Header version invalid */
-	CROSEC_RES_INVALID_HEADER_CRC = 18,      /* Header CRC invalid */
-	CROSEC_RES_INVALID_DATA_CRC = 19,        /* Data CRC invalid */
-	CROSEC_RES_DUP_UNAVAILABLE = 20,         /* Can't resend response */
-} CROSEC_STATUS;

@@ -173,7 +173,7 @@ int ECSendCommandLPCv3(WDFDEVICE originatingDevice, int command, int version, co
 	u.rq.checksum = (UCHAR)(-csum);
 
 	if (ECWaitForReady(originatingDevice, EC_LPC_ADDR_HOST_CMD, 1000000)) {
-		return -EC_RES_ERROR;
+		return -EC_RES_TIMEOUT;
 	}
 
 	ECTransfer(originatingDevice, EC_XFER_WRITE, 0, u.data, (USHORT)(outsize + sizeof(u.rq)));
@@ -182,7 +182,7 @@ int ECSendCommandLPCv3(WDFDEVICE originatingDevice, int command, int version, co
 	outb(EC_COMMAND_PROTOCOL_3, EC_LPC_ADDR_HOST_CMD);
 
 	if (ECWaitForReady(originatingDevice, EC_LPC_ADDR_HOST_CMD, 1000000)) {
-		return -EC_RES_ERROR;
+		return -EC_RES_TIMEOUT;
 	}
 
 	/* Check result */
@@ -195,11 +195,11 @@ int ECSendCommandLPCv3(WDFDEVICE originatingDevice, int command, int version, co
 	ECTransfer(originatingDevice, EC_XFER_READ, 0, r.data, sizeof(r.rs));
 
 	if (r.rs.struct_version != EC_HOST_RESPONSE_VERSION) {
-		return -EC_RES_INVALID_RESPONSE;
+		return -EC_RES_INVALID_HEADER_VERSION;
 	}
 
 	if (r.rs.reserved) {
-		return -EC_RES_INVALID_RESPONSE;
+		return -EC_RES_INVALID_HEADER;
 	}
 
 	if (r.rs.data_len > insize) {
