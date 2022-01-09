@@ -92,9 +92,9 @@ NTSTATUS CrosECIoctlXCmd(_In_ WDFDEVICE Device, _In_ PDEVICE_CONTEXT DeviceConte
 	NT_RETURN_IF(STATUS_BUFFER_TOO_SMALL, outLen < (sizeof(CROSEC_COMMAND) + cmd->insize));
 
 	// I know this seems overprotective, and that I am wielding too much power over you,
-	// but I don't think that the Windows driver should let you erase your flash.
-	// Since the device grants access to all administrators, this would put you
-	// one bad apple away from bricking your machine. Sorry.
+	// but I don't think that the Windows driver should let you erase your EC flash.
+	// Since the device grants access to all administrators, that would put you one
+	// bad apple away from bricking your machine. Sorry.
 	NT_RETURN_IF(STATUS_ACCESS_DENIED,
 		cmd->command == EC_CMD_FLASH_ERASE
 		|| cmd->command == EC_CMD_FLASH_PROTECT
