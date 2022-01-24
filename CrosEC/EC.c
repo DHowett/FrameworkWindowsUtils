@@ -135,18 +135,30 @@ static UCHAR ECChecksumBuffer(char* data, int size) {
 };
 
 int ECReadMemoryLPC(WDFDEVICE originatingDevice, int offset, void* buffer, int length) {
-	PDEVICE_CONTEXT deviceContext = DeviceGetContext(originatingDevice);
-	int res = 0;
+	int off = offset;
+	int cnt = 0;
+	UCHAR* s = buffer;
 
 	if(offset + length > EC_MEMMAP_SIZE) {
 		return -1;
 	}
 
-	KeAcquireGuardedMutex(&deviceContext->mutex);
-	res = ECTransfer(originatingDevice, EC_XFER_READ, (USHORT)(offset + 0x100), buffer, (USHORT)length);
-	KeReleaseGuardedMutex(&deviceContext->mutex);
+	if(length > 0) {
+		// Read specified bytes directly
+		ECTransfer(originatingDevice, EC_XFER_READ, (USHORT)(0x100 + off), buffer, (USHORT)length);
+		cnt = length;
+	} else {
+		// Read a string until we get a \0
+		for(; off < EC_MEMMAP_SIZE; ++off, ++s) {
+			ECTransfer(originatingDevice, EC_XFER_READ, (USHORT)(0x100 + off), (char*)s, 1);
+			cnt++;
+			if(!*s) {
+				break;
+			}
+		}
+	}
 
-	return res;
+	return cnt;
 }
 
 int ECSendCommandLPCv3(WDFDEVICE originatingDevice,
@@ -156,12 +168,9 @@ int ECSendCommandLPCv3(WDFDEVICE originatingDevice,
                        int outsize,
                        void* indata,
                        int insize) {
-	PDEVICE_CONTEXT deviceContext = DeviceGetContext(originatingDevice);
 	int res = EC_RES_SUCCESS;
 	UCHAR csum = 0;
 	int i;
-
-	KeAcquireGuardedMutex(&deviceContext->mutex);
 
 	union {
 		struct ec_host_request rq;
@@ -244,6 +253,5 @@ int ECSendCommandLPCv3(WDFDEVICE originatingDevice,
 	res = r.rs.data_len;
 
 Out:
-	KeReleaseGuardedMutex(&deviceContext->mutex);
 	return res;
 }

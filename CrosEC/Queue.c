@@ -94,8 +94,12 @@ NTSTATUS CrosECIoctlXCmd(_In_ WDFDEVICE Device, _In_ PDEVICE_CONTEXT DeviceConte
 	memset(DeviceContext->inflightCommand, 0, CROSEC_CMD_MAX);
 	memcpy(DeviceContext->inflightCommand, cmd, cmdLen);
 
+	KeAcquireGuardedMutex(&DeviceContext->mutex);
+
 	int res = ECSendCommandLPCv3(Device, cmd->command, cmd->version, CROSEC_COMMAND_DATA(cmd), cmd->outsize,
 	                             CROSEC_COMMAND_DATA(DeviceContext->inflightCommand), cmd->insize);
+
+	KeReleaseGuardedMutex(&DeviceContext->mutex);
 
 	if(res < -EECRESULT) {
 		// Propagate a response code from the EC as res (EC result codes are positive)
@@ -120,31 +124,20 @@ NTSTATUS CrosECIoctlXCmd(_In_ WDFDEVICE Device, _In_ PDEVICE_CONTEXT DeviceConte
 }
 
 NTSTATUS CrosECIoctlReadMem(_In_ WDFDEVICE Device, _In_ PDEVICE_CONTEXT DeviceContext, _In_ WDFREQUEST Request) {
-	(void)DeviceContext;
 	PCROSEC_READMEM rq, rs;
 	NT_RETURN_IF_NTSTATUS_FAILED(WdfRequestRetrieveInputBuffer(Request, sizeof(*rq), (PVOID*)&rq, NULL));
 	NT_RETURN_IF_NTSTATUS_FAILED(WdfRequestRetrieveOutputBuffer(Request, sizeof(*rs), (PVOID*)&rs, NULL));
 
 	NT_RETURN_IF(STATUS_INVALID_ADDRESS, (rq->offset + rq->bytes) > CROSEC_MEMMAP_SIZE);
 
-	rs->offset = rq->offset;
-	rs->bytes = rq->bytes;
+	KeAcquireGuardedMutex(&DeviceContext->mutex);
+	int res = ECReadMemoryLPC(Device, rq->offset, rs->buffer, rq->bytes);
+	KeReleaseGuardedMutex(&DeviceContext->mutex);
 
-	if(rq->bytes > 0) {
-		// Read specified bytes
-		ECReadMemoryLPC(Device, rq->offset, rs->buffer, rq->bytes);
-	} else {
-		int i = 0;
-		UCHAR* s = &rs->buffer[0];
-		while(i < CROSEC_MEMMAP_SIZE) {
-			ECReadMemoryLPC(Device, rq->offset + i, s, 1);
-			++i;
-			if(!*s++) {
-				break;
-			}
-		}
-		rs->bytes = i;
-	}
+	NT_RETURN_IF(STATUS_UNSUCCESSFUL, res < 0);
+
+	rs->offset = rq->offset;
+	rs->bytes = res;
 
 	WdfRequestSetInformation(Request, sizeof(*rs));
 	return STATUS_SUCCESS;
