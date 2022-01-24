@@ -4,8 +4,7 @@
 
 EXTERN_C_START
 
-typedef struct _DEVICE_CONTEXT
-{
+typedef struct _DEVICE_CONTEXT {
 	PCROSEC_COMMAND inflightCommand;
 	KTIMER waitTimer;
 	KGUARDED_MUTEX mutex;

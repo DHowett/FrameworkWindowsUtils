@@ -2,8 +2,8 @@
 #include "device.tmh"
 
 #ifdef ALLOC_PRAGMA
-#pragma alloc_text (PAGE, CrosECCreateDevice)
-#pragma alloc_text (PAGE, CrosECEvtDeviceContextCleanup)
+#pragma alloc_text(PAGE, CrosECCreateDevice)
+#pragma alloc_text(PAGE, CrosECEvtDeviceContextCleanup)
 #endif
 
 NTSTATUS CrosECCreateDevice(_Inout_ PWDFDEVICE_INIT DeviceInit) {
@@ -28,11 +28,8 @@ NTSTATUS CrosECCreateDevice(_Inout_ PWDFDEVICE_INIT DeviceInit) {
 	KeInitializeTimer(&deviceContext->waitTimer);
 	KeInitializeGuardedMutex(&deviceContext->mutex);
 
-	NT_RETURN_IF_NTSTATUS_FAILED(WdfDeviceCreateDeviceInterface(
-		device,
-		&GUID_DEVINTERFACE_CrosEC,
-		NULL /* ReferenceString */ )
-	);
+	NT_RETURN_IF_NTSTATUS_FAILED(
+		WdfDeviceCreateDeviceInterface(device, &GUID_DEVINTERFACE_CrosEC, NULL /* ReferenceString */));
 
 	NT_RETURN_IF_NTSTATUS_FAILED(CrosECQueueInitialize(device));
 

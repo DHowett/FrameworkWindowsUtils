@@ -2,9 +2,9 @@
 #include "driver.tmh"
 
 #ifdef ALLOC_PRAGMA
-#pragma alloc_text (INIT, DriverEntry)
-#pragma alloc_text (PAGE, CrosECEvtDeviceAdd)
-#pragma alloc_text (PAGE, CrosECEvtDriverContextCleanup)
+#pragma alloc_text(INIT, DriverEntry)
+#pragma alloc_text(PAGE, CrosECEvtDeviceAdd)
+#pragma alloc_text(PAGE, CrosECEvtDriverContextCleanup)
 #endif
 
 NTSTATUS DriverEntry(_In_ PDRIVER_OBJECT DriverObject, _In_ PUNICODE_STRING RegistryPath) {
@@ -19,18 +19,11 @@ NTSTATUS DriverEntry(_In_ PDRIVER_OBJECT DriverObject, _In_ PUNICODE_STRING Regi
 	WDF_OBJECT_ATTRIBUTES_INIT(&attributes);
 	attributes.EvtCleanupCallback = CrosECEvtDriverContextCleanup;
 
-	WDF_DRIVER_CONFIG_INIT(&config,
-		CrosECEvtDeviceAdd
-	);
+	WDF_DRIVER_CONFIG_INIT(&config, CrosECEvtDeviceAdd);
 
-	status = WdfDriverCreate(DriverObject,
-		RegistryPath,
-		&attributes,
-		&config,
-		WDF_NO_HANDLE
-	);
+	status = WdfDriverCreate(DriverObject, RegistryPath, &attributes, &config, WDF_NO_HANDLE);
 
-	if (!NT_SUCCESS(status)) {
+	if(!NT_SUCCESS(status)) {
 		TraceEvents(TRACE_LEVEL_ERROR, TRACE_DRIVER, "WdfDriverCreate failed %!STATUS!", status);
 		WPP_CLEANUP(DriverObject);
 		return status;

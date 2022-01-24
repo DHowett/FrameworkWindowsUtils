@@ -7,13 +7,13 @@ NTSTATUS CrosECIoctlXCmd(_In_ WDFDEVICE Device, _In_ PDEVICE_CONTEXT DeviceConte
 NTSTATUS CrosECIoctlReadMem(_In_ WDFDEVICE Device, _In_ PDEVICE_CONTEXT DeviceContext, _In_ WDFREQUEST Request);
 
 #ifdef ALLOC_PRAGMA
-#pragma alloc_text (PAGE, CrosECQueueInitialize)
+#pragma alloc_text(PAGE, CrosECQueueInitialize)
 #endif
 
 #define EC_CMD_USB_PD_FW_UPDATE 0x0110
-#define EC_CMD_FLASH_WRITE 0x0012
-#define EC_CMD_FLASH_ERASE 0x0013
-#define EC_CMD_FLASH_PROTECT 0x0015
+#define EC_CMD_FLASH_WRITE      0x0012
+#define EC_CMD_FLASH_ERASE      0x0013
+#define EC_CMD_FLASH_PROTECT    0x0015
 
 static NTSTATUS sCrosECErrorCodeMapping[] = {
 	[EC_RES_SUCCESS] = STATUS_SUCCESS,
@@ -51,22 +51,14 @@ NTSTATUS CrosECQueueInitialize(_In_ WDFDEVICE Device) {
 	// configure-fowarded using WdfDeviceConfigureRequestDispatching to goto
 	// other queues get dispatched here.
 	//
-	WDF_IO_QUEUE_CONFIG_INIT_DEFAULT_QUEUE(
-		&queueConfig,
-		WdfIoQueueDispatchParallel
-	);
+	WDF_IO_QUEUE_CONFIG_INIT_DEFAULT_QUEUE(&queueConfig, WdfIoQueueDispatchParallel);
 
 	queueConfig.EvtIoDeviceControl = CrosECEvtIoDeviceControl;
 	queueConfig.EvtIoStop = CrosECEvtIoStop;
 
-	status = WdfIoQueueCreate(
-		Device,
-		&queueConfig,
-		WDF_NO_OBJECT_ATTRIBUTES,
-		&queue
-	);
+	status = WdfIoQueueCreate(Device, &queueConfig, WDF_NO_OBJECT_ATTRIBUTES, &queue);
 
-	if (!NT_SUCCESS(status)) {
+	if(!NT_SUCCESS(status)) {
 		TraceEvents(TRACE_LEVEL_ERROR, TRACE_QUEUE, "WdfIoQueueCreate failed %!STATUS!", status);
 		return status;
 	}
@@ -95,31 +87,30 @@ NTSTATUS CrosECIoctlXCmd(_In_ WDFDEVICE Device, _In_ PDEVICE_CONTEXT DeviceConte
 	// but I don't think that the Windows driver should let you erase your EC flash.
 	// Since the device grants access to all administrators, that would put you one
 	// bad apple away from bricking your machine. Sorry.
-	NT_RETURN_IF(STATUS_ACCESS_DENIED,
-		cmd->command == EC_CMD_FLASH_ERASE
-		|| cmd->command == EC_CMD_FLASH_PROTECT
-		|| cmd->command == EC_CMD_FLASH_WRITE
-		|| cmd->command == EC_CMD_USB_PD_FW_UPDATE);
+	NT_RETURN_IF(STATUS_ACCESS_DENIED, cmd->command == EC_CMD_FLASH_ERASE || cmd->command == EC_CMD_FLASH_PROTECT ||
+	                                           cmd->command == EC_CMD_FLASH_WRITE ||
+	                                           cmd->command == EC_CMD_USB_PD_FW_UPDATE);
 
 	memset(DeviceContext->inflightCommand, 0, CROSEC_CMD_MAX);
 	memcpy(DeviceContext->inflightCommand, cmd, cmdLen);
 
-	int res = ECSendCommandLPCv3(Device, cmd->command, cmd->version, CROSEC_COMMAND_DATA(cmd), cmd->outsize, CROSEC_COMMAND_DATA(DeviceContext->inflightCommand), cmd->insize);
+	int res = ECSendCommandLPCv3(Device, cmd->command, cmd->version, CROSEC_COMMAND_DATA(cmd), cmd->outsize,
+	                             CROSEC_COMMAND_DATA(DeviceContext->inflightCommand), cmd->insize);
 
-	if (res < -EECRESULT) {
+	if(res < -EECRESULT) {
 		// Propagate a response code from the EC as res (EC result codes are positive)
 		DeviceContext->inflightCommand->result = (-res) - EECRESULT;
-		res = 0; // tell the client we received nothing
-	} else if (res < 0) {
+		res = 0;  // tell the client we received nothing
+	} else if(res < 0) {
 		// Transform the protocol failure into an NTSTATUS and return early.
 		NT_RETURN_IF(STATUS_FAIL_CHECK, -res > EC_RES_DUP_UNAVAILABLE);
 		return sCrosECErrorCodeMapping[-res];
 	} else {
-		DeviceContext->inflightCommand->result = 0; // 0 = SUCCESS
+		DeviceContext->inflightCommand->result = 0;  // 0 = SUCCESS
 	}
 
 	int requiredReplySize = sizeof(CROSEC_COMMAND) + res;
-	if (requiredReplySize > outLen) {
+	if(requiredReplySize > outLen) {
 		return STATUS_BUFFER_TOO_SMALL;
 	}
 
@@ -139,17 +130,18 @@ NTSTATUS CrosECIoctlReadMem(_In_ WDFDEVICE Device, _In_ PDEVICE_CONTEXT DeviceCo
 	rs->offset = rq->offset;
 	rs->bytes = rq->bytes;
 
-	if (rq->bytes > 0) {
+	if(rq->bytes > 0) {
 		// Read specified bytes
 		ECReadMemoryLPC(Device, rq->offset, rs->buffer, rq->bytes);
-	}
-	else {
+	} else {
 		int i = 0;
 		UCHAR* s = &rs->buffer[0];
-		while (i < CROSEC_MEMMAP_SIZE) {
+		while(i < CROSEC_MEMMAP_SIZE) {
 			ECReadMemoryLPC(Device, rq->offset + i, s, 1);
 			++i;
-			if (!*s++) { break; }
+			if(!*s++) {
+				break;
+			}
 		}
 		rs->bytes = i;
 	}
@@ -158,25 +150,28 @@ NTSTATUS CrosECIoctlReadMem(_In_ WDFDEVICE Device, _In_ PDEVICE_CONTEXT DeviceCo
 	return STATUS_SUCCESS;
 }
 
-VOID CrosECEvtIoDeviceControl(_In_ WDFQUEUE Queue, _In_ WDFREQUEST Request, _In_ size_t OutputBufferLength, _In_ size_t InputBufferLength, _In_ ULONG IoControlCode) {
-	TraceEvents(TRACE_LEVEL_INFORMATION,
-		TRACE_QUEUE,
-		"%!FUNC! Queue 0x%p, Request 0x%p OutputBufferLength %d InputBufferLength %d IoControlCode %d",
-		Queue, Request, (int)OutputBufferLength, (int)InputBufferLength, IoControlCode);
+VOID CrosECEvtIoDeviceControl(_In_ WDFQUEUE Queue,
+                              _In_ WDFREQUEST Request,
+                              _In_ size_t OutputBufferLength,
+                              _In_ size_t InputBufferLength,
+                              _In_ ULONG IoControlCode) {
+	TraceEvents(TRACE_LEVEL_INFORMATION, TRACE_QUEUE,
+	            "%!FUNC! Queue 0x%p, Request 0x%p OutputBufferLength %d InputBufferLength %d IoControlCode %d",
+	            Queue, Request, (int)OutputBufferLength, (int)InputBufferLength, IoControlCode);
 
 	WDFDEVICE device = WdfIoQueueGetDevice(Queue);
 	PDEVICE_CONTEXT deviceContext = DeviceGetContext(device);
 	NTSTATUS Status = STATUS_INVALID_PARAMETER;
 
-	switch (IoControlCode) {
-	case IOCTL_CROSEC_XCMD: {
-		Status = CrosECIoctlXCmd(device, deviceContext, Request);
-		break;
-	}
-	case IOCTL_CROSEC_RDMEM: {
-		Status = CrosECIoctlReadMem(device, deviceContext, Request);
-		break;
-	}
+	switch(IoControlCode) {
+		case IOCTL_CROSEC_XCMD: {
+			Status = CrosECIoctlXCmd(device, deviceContext, Request);
+			break;
+		}
+		case IOCTL_CROSEC_RDMEM: {
+			Status = CrosECIoctlReadMem(device, deviceContext, Request);
+			break;
+		}
 	}
 
 	WdfRequestComplete(Request, Status);
@@ -185,10 +180,8 @@ VOID CrosECEvtIoDeviceControl(_In_ WDFQUEUE Queue, _In_ WDFREQUEST Request, _In_
 }
 
 VOID CrosECEvtIoStop(_In_ WDFQUEUE Queue, _In_ WDFREQUEST Request, _In_ ULONG ActionFlags) {
-	TraceEvents(TRACE_LEVEL_INFORMATION,
-		TRACE_QUEUE,
-		"%!FUNC! Queue 0x%p, Request 0x%p ActionFlags %d",
-		Queue, Request, ActionFlags);
+	TraceEvents(TRACE_LEVEL_INFORMATION, TRACE_QUEUE, "%!FUNC! Queue 0x%p, Request 0x%p ActionFlags %d", Queue,
+	            Request, ActionFlags);
 
 	//
 	// In most cases, the EvtIoStop callback function completes, cancels, or postpones
