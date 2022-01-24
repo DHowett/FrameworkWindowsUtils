@@ -138,6 +138,10 @@ int ECReadMemoryLPC(WDFDEVICE originatingDevice, int offset, void* buffer, int l
 	PDEVICE_CONTEXT deviceContext = DeviceGetContext(originatingDevice);
 	int res = 0;
 
+	if(offset + length > EC_MEMMAP_SIZE) {
+		return -1;
+	}
+
 	KeAcquireGuardedMutex(&deviceContext->mutex);
 	res = ECTransfer(originatingDevice, EC_XFER_READ, (USHORT)(offset + 0x100), buffer, (USHORT)length);
 	KeReleaseGuardedMutex(&deviceContext->mutex);
