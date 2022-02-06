@@ -47,7 +47,7 @@ static std::set<std::wstring_view, std::less<void>> multiSzToSet(const std::vect
 	auto begin{multiSz.begin()};
 	while(begin != multiSz.end()) {
 		const auto l{wcslen(&*begin)};
-		if(l == 0) { // an empty string in a REG_MULTI_SZ signals the end
+		if(l == 0) {  // an empty string in a REG_MULTI_SZ signals the end
 			break;
 		}
 		r.insert(std::wstring_view{&*begin, l});
@@ -107,8 +107,7 @@ static HRESULT RemoveCrosECDeviceNode() {
 	int found{}, failures{};
 	for(DWORD devIndex = 0; SetupDiEnumDeviceInfo(devs.get(), devIndex, &devInfo); devIndex++) {
 		wchar_t devID[MAX_DEVICE_ID_LEN];
-		RETURN_HR_IF(E_FAIL,
-		             CR_SUCCESS != CM_Get_Device_ID_ExW(devInfo.DevInst, devID, std::size(devID), 0, nullptr));
+		RETURN_HR_IF(E_FAIL, CR_SUCCESS != CM_Get_Device_IDW(devInfo.DevInst, devID, std::size(devID), 0));
 
 		std::vector<wchar_t> hwIdsMultiSz;
 		DWORD dataType{};
@@ -171,6 +170,7 @@ int __cdecl wmain(_In_ int argc, _In_reads_(argc) PWSTR* argv) {
 	if(argc < 2) {
 		return PrintUsage(argv[0]);
 	}
+
 	if(wcscmp(argv[1], L"install") == 0) {
 		return Install();
 	} else if(wcscmp(argv[1], L"uninstall") == 0) {
