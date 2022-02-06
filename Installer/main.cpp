@@ -3,6 +3,7 @@
 #include <initguid.h>  // emit the GUIDs in CrosEC into our own binary...
 #include "../CrosEC/Public.h"
 
+#pragma region WIL Extensions
 namespace wil::details {
 template <>
 struct string_maker<std::vector<wchar_t>> {
@@ -37,13 +38,18 @@ using unique_hdevinfo = wil::unique_any<HDEVINFO,
                                         HDEVINFO,
                                         INVALID_HANDLE_VALUE>;
 
+#pragma endregion
+
 static constexpr HRESULT S_REBOOT{(HRESULT)3};
 
 static std::set<std::wstring_view, std::less<void>> multiSzToSet(const std::vector<wchar_t>& multiSz) {
 	std::set<std::wstring_view, std::less<void>> r;
 	auto begin{multiSz.begin()};
 	while(begin != multiSz.end()) {
-		auto l{wcslen(&*begin)};
+		const auto l{wcslen(&*begin)};
+		if(l == 0) { // an empty string in a REG_MULTI_SZ signals the end
+			break;
+		}
 		r.insert(std::wstring_view{&*begin, l});
 		begin += l + 1;
 	}
@@ -121,7 +127,7 @@ static HRESULT RemoveCrosECDeviceNode() {
 			if(!SetupDiCallClassInstaller(DIF_REMOVE, devs.get(), &devInfo)) {
 				auto lastError{GetLastError()};
 				failures++;
-				fwprintf(stderr, L"FAILED (%8.08llx)\r\n", HRESULT_FROM_SETUPAPI(lastError));
+				fwprintf(stderr, L"FAILED (%8.08lx)\r\n", HRESULT_FROM_SETUPAPI(lastError));
 			} else {
 				fwprintf(stderr, L"OK\r\n");
 			}
@@ -147,7 +153,7 @@ static HRESULT Remove() {
 	BOOL reboot;
 	if(!DiUninstallDriverW(nullptr, infPath.native().c_str(), 0, &reboot)) {
 		auto lastError{GetLastError()};
-		fwprintf(stderr, L"FAILED (%8.08llx)\r\n", HRESULT_FROM_SETUPAPI(lastError));
+		fwprintf(stderr, L"FAILED (%8.08lx)\r\n", HRESULT_FROM_SETUPAPI(lastError));
 		return HRESULT_FROM_SETUPAPI(lastError);
 	} else {
 		fwprintf(stderr, L"OK\r\n");
