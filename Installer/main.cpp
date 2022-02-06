@@ -107,15 +107,16 @@ static HRESULT RemoveCrosECDeviceNode() {
 	int found{}, failures{};
 	for(DWORD devIndex = 0; SetupDiEnumDeviceInfo(devs.get(), devIndex, &devInfo); devIndex++) {
 		wchar_t devID[MAX_DEVICE_ID_LEN];
-		RETURN_HR_IF(E_FAIL, CR_SUCCESS != CM_Get_Device_IDW(devInfo.DevInst, devID, std::size(devID), 0));
+		RETURN_HR_IF(E_FAIL,
+		             CR_SUCCESS != CM_Get_Device_IDW(devInfo.DevInst, devID, (DWORD)std::size(devID), 0));
 
 		std::vector<wchar_t> hwIdsMultiSz;
 		DWORD dataType{};
 		wil::AdaptFixedSizeToAllocatedResult(hwIdsMultiSz, [&](PWSTR buffer, size_t size, size_t* needed) {
 			DWORD neededBytes;
-			RETURN_IF_WIN32_BOOL_FALSE(
-				SetupDiGetDeviceRegistryPropertyW(devs.get(), &devInfo, SPDRP_HARDWAREID, &dataType,
-			                                          (PBYTE)buffer, size * sizeof(wchar_t), &neededBytes));
+			RETURN_IF_WIN32_BOOL_FALSE(SetupDiGetDeviceRegistryPropertyW(
+				devs.get(), &devInfo, SPDRP_HARDWAREID, &dataType, (PBYTE)buffer,
+				(DWORD)(size * sizeof(wchar_t)), &neededBytes));
 			*needed = neededBytes / sizeof(wchar_t);
 			return S_OK;
 		});
@@ -134,7 +135,7 @@ static HRESULT RemoveCrosECDeviceNode() {
 	}
 
 	if(!found) {
-		fwprintf(stderr, L"[+] No devices found.\r\n");
+		fwprintf(stderr, L"[+] No device nodes found.\r\n");
 	} else {
 		fwprintf(stderr, L"[+] Removed %d device%s.\r\n", found - failures,
 		         (found - failures) == 1 ? L"" : L"s");
