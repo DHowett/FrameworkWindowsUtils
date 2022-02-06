@@ -7,6 +7,8 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "CrosEC", "CrosEC\CrosEC.vcx
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "FauxECTool", "FauxECTool\FauxECTool.vcxproj", "{233EC23E-EC7F-403D-B226-AB9F94365D90}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Installer", "Installer\Installer.vcxproj", "{40DB3049-D338-4C0E-9EA4-9745606B0550}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|ARM = Debug|ARM
@@ -47,6 +49,18 @@ Global
 		{233EC23E-EC7F-403D-B226-AB9F94365D90}.Release|x64.Build.0 = Release|x64
 		{233EC23E-EC7F-403D-B226-AB9F94365D90}.Release|x86.ActiveCfg = Release|Win32
 		{233EC23E-EC7F-403D-B226-AB9F94365D90}.Release|x86.Build.0 = Release|Win32
+		{40DB3049-D338-4C0E-9EA4-9745606B0550}.Debug|ARM.ActiveCfg = Debug|Win32
+		{40DB3049-D338-4C0E-9EA4-9745606B0550}.Debug|ARM64.ActiveCfg = Debug|Win32
+		{40DB3049-D338-4C0E-9EA4-9745606B0550}.Debug|x64.ActiveCfg = Debug|x64
+		{40DB3049-D338-4C0E-9EA4-9745606B0550}.Debug|x64.Build.0 = Debug|x64
+		{40DB3049-D338-4C0E-9EA4-9745606B0550}.Debug|x86.ActiveCfg = Debug|Win32
+		{40DB3049-D338-4C0E-9EA4-9745606B0550}.Debug|x86.Build.0 = Debug|Win32
+		{40DB3049-D338-4C0E-9EA4-9745606B0550}.Release|ARM.ActiveCfg = Release|Win32
+		{40DB3049-D338-4C0E-9EA4-9745606B0550}.Release|ARM64.ActiveCfg = Release|Win32
+		{40DB3049-D338-4C0E-9EA4-9745606B0550}.Release|x64.ActiveCfg = Release|x64
+		{40DB3049-D338-4C0E-9EA4-9745606B0550}.Release|x64.Build.0 = Release|x64
+		{40DB3049-D338-4C0E-9EA4-9745606B0550}.Release|x86.ActiveCfg = Release|Win32
+		{40DB3049-D338-4C0E-9EA4-9745606B0550}.Release|x86.Build.0 = Release|Win32
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
