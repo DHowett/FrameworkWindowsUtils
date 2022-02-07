@@ -28,15 +28,15 @@ typedef enum _EC_TRANSFER_DIRECTION
 
 // As defined in MEC172x section 16.8.3
 // https://ww1.microchip.com/downloads/en/DeviceDoc/MEC172x-Data-Sheet-DS00003583C.pdf
-#define FW_EC_BYTE_ACCESS               0x00
-#define FW_EC_LONG_ACCESS_AUTOINCREMENT 0x03
+#define MEC_EC_BYTE_ACCESS               0x00
+#define MEC_EC_LONG_ACCESS_AUTOINCREMENT 0x03
 
-#define FW_EC_EC_ADDRESS_REGISTER0 0x0802
-#define FW_EC_EC_ADDRESS_REGISTER1 0x0803
-#define FW_EC_EC_DATA_REGISTER0    0x0804
-#define FW_EC_EC_DATA_REGISTER1    0x0805
-#define FW_EC_EC_DATA_REGISTER2    0x0806
-#define FW_EC_EC_DATA_REGISTER3    0x0807
+#define MEC_LPC_ADDRESS_REGISTER0 0x0802
+#define MEC_LPC_ADDRESS_REGISTER1 0x0803
+#define MEC_LPC_DATA_REGISTER0    0x0804
+#define MEC_LPC_DATA_REGISTER1    0x0805
+#define MEC_LPC_DATA_REGISTER2    0x0806
+#define MEC_LPC_DATA_REGISTER3    0x0807
 
 static int ECTransfer(WDFDEVICE originatingDevice,
                       EC_TRANSFER_DIRECTION direction,
@@ -47,30 +47,30 @@ static int ECTransfer(WDFDEVICE originatingDevice,
 	int pos = 0;
 	USHORT temp[2];
 	if(address % 4 > 0) {
-		outw((address & 0xFFFC) | FW_EC_BYTE_ACCESS, FW_EC_EC_ADDRESS_REGISTER0);
+		outw((address & 0xFFFC) | MEC_EC_BYTE_ACCESS, MEC_LPC_ADDRESS_REGISTER0);
 		/* Unaligned start address */
 		for(int i = address % 4; i < 4; ++i) {
 			char* storage = &data[pos++];
 			if(direction == EC_XFER_WRITE)
-				outb(*storage, FW_EC_EC_DATA_REGISTER0 + i);
+				outb(*storage, MEC_LPC_DATA_REGISTER0 + i);
 			else if(direction == EC_XFER_READ)
-				*storage = inb(FW_EC_EC_DATA_REGISTER0 + i);
+				*storage = inb(MEC_LPC_DATA_REGISTER0 + i);
 		}
 		address = (address + 4) & 0xFFFC;  // Up to next multiple of 4
 	}
 
 	if(size - pos >= 4) {
-		outw((address & 0xFFFC) | FW_EC_LONG_ACCESS_AUTOINCREMENT, FW_EC_EC_ADDRESS_REGISTER0);
+		outw((address & 0xFFFC) | MEC_EC_LONG_ACCESS_AUTOINCREMENT, MEC_LPC_ADDRESS_REGISTER0);
 		// Chunk writing for anything large, 4 bytes at a time
 		// Writing to 804, 806 automatically increments dest address
 		while(size - pos >= 4) {
 			if(direction == EC_XFER_WRITE) {
 				memcpy(temp, &data[pos], sizeof(temp));
-				outw(temp[0], FW_EC_EC_DATA_REGISTER0);
-				outw(temp[1], FW_EC_EC_DATA_REGISTER2);
+				outw(temp[0], MEC_LPC_DATA_REGISTER0);
+				outw(temp[1], MEC_LPC_DATA_REGISTER2);
 			} else if(direction == EC_XFER_READ) {
-				temp[0] = inw(FW_EC_EC_DATA_REGISTER0);
-				temp[1] = inw(FW_EC_EC_DATA_REGISTER2);
+				temp[0] = inw(MEC_LPC_DATA_REGISTER0);
+				temp[1] = inw(MEC_LPC_DATA_REGISTER2);
 				memcpy(&data[pos], temp, sizeof(temp));
 			}
 
@@ -81,13 +81,13 @@ static int ECTransfer(WDFDEVICE originatingDevice,
 
 	if(size - pos > 0) {
 		// Unaligned remaining data - R/W it by byte
-		outw((address & 0xFFFC) | FW_EC_BYTE_ACCESS, FW_EC_EC_ADDRESS_REGISTER0);
+		outw((address & 0xFFFC) | MEC_EC_BYTE_ACCESS, MEC_LPC_ADDRESS_REGISTER0);
 		for(int i = 0; i < (size - pos); ++i) {
 			char* storage = &data[pos + i];
 			if(direction == EC_XFER_WRITE)
-				outb(*storage, FW_EC_EC_DATA_REGISTER0 + i);
+				outb(*storage, MEC_LPC_DATA_REGISTER0 + i);
 			else if(direction == EC_XFER_READ)
-				*storage = inb(FW_EC_EC_DATA_REGISTER0 + i);
+				*storage = inb(MEC_LPC_DATA_REGISTER0 + i);
 		}
 	}
 	return 0;
