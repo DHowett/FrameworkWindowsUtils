@@ -101,6 +101,10 @@ NTSTATUS CrosECIoctlXCmd(_In_ WDFDEVICE Device, _In_ PDEVICE_CONTEXT DeviceConte
 
 	KeReleaseGuardedMutex(&DeviceContext->mutex);
 
+	TraceEvents(TRACE_LEVEL_INFORMATION, TRACE_QUEUE,
+	            "%!FUNC! Request 0x%p Command %u Version %u OutSize %u Result %d", Request,
+	            cmd->command, cmd->version, cmd->outsize, res);
+
 	if(res < -EECRESULT) {
 		// Propagate a response code from the EC as res (EC result codes are positive)
 		DeviceContext->inflightCommand->result = (-res) - EECRESULT;
@@ -133,6 +137,9 @@ NTSTATUS CrosECIoctlReadMem(_In_ WDFDEVICE Device, _In_ PDEVICE_CONTEXT DeviceCo
 	KeAcquireGuardedMutex(&DeviceContext->mutex);
 	int res = ECReadMemoryLPC(Device, rq->offset, rs->buffer, rq->bytes);
 	KeReleaseGuardedMutex(&DeviceContext->mutex);
+
+	TraceEvents(TRACE_LEVEL_INFORMATION, TRACE_QUEUE, "%!FUNC! Request 0x%p Offset 0x%x Buffer %d Result %d",
+	            Request, rq->offset, rq->bytes, res);
 
 	NT_RETURN_IF(STATUS_UNSUCCESSFUL, res < 0);
 
