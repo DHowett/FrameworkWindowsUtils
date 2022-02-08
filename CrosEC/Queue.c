@@ -102,8 +102,8 @@ NTSTATUS CrosECIoctlXCmd(_In_ WDFDEVICE Device, _In_ PDEVICE_CONTEXT DeviceConte
 	KeReleaseGuardedMutex(&DeviceContext->mutex);
 
 	TraceEvents(TRACE_LEVEL_INFORMATION, TRACE_QUEUE,
-	            "%!FUNC! Request 0x%p Command %u Version %u OutSize %u Result %d", Request,
-	            cmd->command, cmd->version, cmd->outsize, res);
+	            "%!FUNC! Request 0x%p Command %u Version %u OutSize %u Result %d", Request, cmd->command,
+	            cmd->version, cmd->outsize, res);
 
 	if(res < -EECRESULT) {
 		// Propagate a response code from the EC as res (EC result codes are positive)
