@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" ToolsVersion="14.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <!-- We're controlling the output paths manually; do not let the rest of VS override them. -->
+    <GenerateProjectSpecificOutputFolder>false</GenerateProjectSpecificOutputFolder>
+
+    <OutDir>$(SolutionDir)bin\$(Platform)\$(Configuration)\</OutDir>
+    <OutputPath>$(OutDir)</OutputPath>
+
+    <IntDir>$(SolutionDir)obj\$(Platform)\$(Configuration)\$(MSBuildProjectName)\</IntDir>
+    <IntermediateOutputPath>$(IntDir)</IntermediateOutputPath>
+
+    <DHCommonOutputPath>$(OutDir)</DHCommonOutputPath>
+    <DHCommonIntermediateOutputPath>$(IntDir)</DHCommonIntermediateOutputPath>
+
+    <!-- Both pairs of OutDir/OutputPath and IntDir/IntermediateOutputPath must be set;
+         different parts of the project infrastructure use them (without rhyme or reason.) -->
+  </PropertyGroup>
+</Project>
