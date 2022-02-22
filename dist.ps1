@@ -10,7 +10,8 @@ rm -r -force O -EA:Ignore
 ### It expects that you gave SDK 10.0.22000.0 available.
 msbuild .\FrameworkWindowsUtils.sln `
     /p:Platform=x64`;Configuration=Release `
-    /p:OutDir=$PWD\O `
+    /p:OutDir=$PWD\O\ `
+    /p:Reproducible=true `
     /p:TestCertificate=$Cert `
     /m
 If ($LASTEXITCODE -Ne 0) { throw "Failed to Build" }

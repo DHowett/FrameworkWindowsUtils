@@ -254,4 +254,17 @@
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>
+  <ItemDefinitionGroup Condition="'$(Reproducible)'=='true'">
+    <ClCompile>
+      <AdditionalOptions>/Brepro /experimental:deterministic /d1nodatetime /d1trimfile:$(SolutionDir) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <Link>
+      <AdditionalOptions>/Brepro /PDBALTPATH:%_PDB% %(AdditionalOptions)</AdditionalOptions>
+    </Link>
+   </ItemDefinitionGroup>
+  <Target Name="_CrosECRunDucible"
+          Condition="'$(Reproducible)'=='true'"
+          BeforeTargets="DriverProductionSign; DriverTestSign">
+    <Exec Command="ducible $(TargetPath) %(Link.ProgramDatabaseFile)" />
+  </Target>
 </Project>
