@@ -24,7 +24,7 @@ NTSTATUS CrosECCreateDevice(_Inout_ PWDFDEVICE_INIT DeviceInit) {
 
 	deviceContext = DeviceGetContext(device);
 
-	deviceContext->inflightCommand = ExAllocatePoolWithTag(NonPagedPool, CROSEC_CMD_MAX, CROS_EC_POOL_TAG);
+	deviceContext->inflightCommand = ExAllocatePool2(POOL_FLAG_NON_PAGED, CROSEC_CMD_MAX, CROS_EC_POOL_TAG);
 	KeInitializeTimer(&deviceContext->waitTimer);
 	KeInitializeGuardedMutex(&deviceContext->mutex);
 

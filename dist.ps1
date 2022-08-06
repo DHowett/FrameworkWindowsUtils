@@ -7,7 +7,7 @@ $ErrorActionPreference='Stop'
 rm -r -force O -EA:Ignore
 
 ### This must be run from the EWDK environment.
-### It expects that you gave SDK 10.0.22000.0 available.
+### It expects that you have SDK 10.0.22621.0 available.
 msbuild .\FrameworkWindowsUtils.sln `
     /p:Platform=x64`;Configuration=Release `
     /p:OutDir=$PWD\O\ `
