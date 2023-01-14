@@ -3,12 +3,16 @@
 #include <ntddk.h>
 #include <wdf.h>
 #include <initguid.h>
+#include <wdmguid.h>
+#include <acpiioct.h>
+#include <acpitabl.h>
 
 #include "device.h"
 #include "queue.h"
 #include "trace.h"
 
-#define FAILED_NTSTATUS(status) (((NTSTATUS)(status)) < 0)
+#define SUCCEEDED_NTSTATUS(status) (((NTSTATUS)(status)) >= 0)
+#define FAILED_NTSTATUS(status)    (((NTSTATUS)(status)) < 0)
 #define NT_RETURN_IF_NTSTATUS_FAILED(status)           \
 	do {                                           \
 		const NTSTATUS __statusRet = (status); \

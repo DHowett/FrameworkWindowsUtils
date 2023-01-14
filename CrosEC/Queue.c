@@ -94,12 +94,12 @@ NTSTATUS CrosECIoctlXCmd(_In_ WDFDEVICE Device, _In_ PDEVICE_CONTEXT DeviceConte
 	memset(DeviceContext->inflightCommand, 0, CROSEC_CMD_MAX);
 	memcpy(DeviceContext->inflightCommand, cmd, cmdLen);
 
-	KeAcquireGuardedMutex(&DeviceContext->mutex);
+	CrosECDeviceAcquireLock(Device);
 
 	int res = ECSendCommandLPCv3(Device, cmd->command, cmd->version, CROSEC_COMMAND_DATA(cmd), cmd->outsize,
 	                             CROSEC_COMMAND_DATA(DeviceContext->inflightCommand), cmd->insize);
 
-	KeReleaseGuardedMutex(&DeviceContext->mutex);
+	CrosECDeviceReleaseLock(Device);
 
 	TraceEvents(TRACE_LEVEL_INFORMATION, TRACE_QUEUE,
 	            "%!FUNC! Request 0x%p Command %u Version %u OutSize %u Result %d", Request, cmd->command,
@@ -128,15 +128,16 @@ NTSTATUS CrosECIoctlXCmd(_In_ WDFDEVICE Device, _In_ PDEVICE_CONTEXT DeviceConte
 }
 
 NTSTATUS CrosECIoctlReadMem(_In_ WDFDEVICE Device, _In_ PDEVICE_CONTEXT DeviceContext, _In_ WDFREQUEST Request) {
+	(void) DeviceContext;
 	PCROSEC_READMEM rq, rs;
 	NT_RETURN_IF_NTSTATUS_FAILED(WdfRequestRetrieveInputBuffer(Request, sizeof(*rq), (PVOID*)&rq, NULL));
 	NT_RETURN_IF_NTSTATUS_FAILED(WdfRequestRetrieveOutputBuffer(Request, sizeof(*rs), (PVOID*)&rs, NULL));
 
 	NT_RETURN_IF(STATUS_INVALID_ADDRESS, (rq->offset + rq->bytes) > CROSEC_MEMMAP_SIZE);
 
-	KeAcquireGuardedMutex(&DeviceContext->mutex);
+	CrosECDeviceAcquireLock(Device);
 	int res = ECReadMemoryLPC(Device, rq->offset, rs->buffer, rq->bytes);
-	KeReleaseGuardedMutex(&DeviceContext->mutex);
+	CrosECDeviceReleaseLock(Device);
 
 	TraceEvents(TRACE_LEVEL_INFORMATION, TRACE_QUEUE, "%!FUNC! Request 0x%p Offset 0x%x Buffer %d Result %d",
 	            Request, rq->offset, rq->bytes, res);
