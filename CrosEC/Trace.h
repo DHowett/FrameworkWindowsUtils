@@ -6,7 +6,7 @@
 	WPP_DEFINE_CONTROL_GUID(CrosECTraceGuid, (1bc847ab, b215, 47aa, 8bb2, 02e5fbf1252b), \
                                                                                              \
 	                        WPP_DEFINE_BIT(CROSEC_ALL_INFO) WPP_DEFINE_BIT(TRACE_DRIVER) \
-	                                WPP_DEFINE_BIT(TRACE_DEVICE) WPP_DEFINE_BIT(TRACE_QUEUE))
+	                                WPP_DEFINE_BIT(TRACE_DEVICE) WPP_DEFINE_BIT(TRACE_QUEUE) WPP_DEFINE_BIT(TRACE_EC))
 
 #define WPP_FLAG_LEVEL_LOGGER(flag, level) WPP_LEVEL_LOGGER(flag)
 

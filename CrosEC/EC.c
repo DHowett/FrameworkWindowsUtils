@@ -1,8 +1,10 @@
 #include <ntddk.h>
 #include <wdf.h>
 
+#include "Driver.h"
 #include "Device.h"
 #include "EC.h"
+#include "EC.tmh"
 
 static __inline void outb(unsigned char __val, unsigned int __port) {
 	WRITE_PORT_UCHAR((PUCHAR)__port, __val);
@@ -20,8 +22,7 @@ static __inline unsigned short inw(unsigned int __port) {
 	return READ_PORT_USHORT((PUSHORT)__port);
 }
 
-typedef enum _EC_TRANSFER_DIRECTION
-{
+typedef enum _EC_TRANSFER_DIRECTION {
 	EC_XFER_WRITE,
 	EC_XFER_READ
 } EC_TRANSFER_DIRECTION;
@@ -145,7 +146,18 @@ int ECReadMemoryLPC(WDFDEVICE originatingDevice, int offset, void* buffer, int l
 
 	if(length > 0) {
 		// Read specified bytes directly
-		ECTransfer(originatingDevice, EC_XFER_READ, (USHORT)(0x100 + off), buffer, (USHORT)length);
+		PACPI_EVAL_OUTPUT_BUFFER output;
+		NTSTATUS Status = Acpi_EvaluateDsmWithReadmem(originatingDevice, 0x100+offset, length, &output);
+		if(SUCCEEDED_NTSTATUS(Status)) {
+			TraceEvents(TRACE_LEVEL_INFORMATION, TRACE_EC, "Read %d bytes via ACPI",
+			            output->Argument[0].DataLength);
+			memcpy(buffer, output->Argument[0].Data, min(output->Argument[0].DataLength, length));
+			ExFreePoolWithTag(output, CROS_EC_POOL_TAG);
+		} else {
+			TraceEvents(TRACE_LEVEL_INFORMATION, TRACE_EC, "ACPI Read Failed %!STATUS! - Falling back to EC",
+			            Status);
+			ECTransfer(originatingDevice, EC_XFER_READ, (USHORT)(0x100 + off), buffer, (USHORT)length);
+		}
 		cnt = length;
 	} else {
 		// Read a string until we get a \0
@@ -170,7 +182,7 @@ int ECSendCommandLPCv3(WDFDEVICE originatingDevice,
                        int insize) {
 	int res = EC_RES_SUCCESS;
 	UCHAR csum = 0;
-	int i;
+	// int i;
 
 	union {
 		struct ec_host_request rq;
@@ -201,6 +213,7 @@ int ECSendCommandLPCv3(WDFDEVICE originatingDevice,
 	csum = ECChecksumBuffer(u.data, outsize + sizeof(u.rq));
 	u.rq.checksum = (UCHAR)(-csum);
 
+#if 0
 	if(ECWaitForReady(originatingDevice, EC_LPC_ADDR_HOST_CMD, 1000000)) {
 		res = -EC_RES_TIMEOUT;
 		goto Out;
@@ -225,6 +238,21 @@ int ECSendCommandLPCv3(WDFDEVICE originatingDevice,
 
 	csum = 0;
 	ECTransfer(originatingDevice, EC_XFER_READ, 0, r.data, sizeof(r.rs));
+#endif
+	PACPI_EVAL_OUTPUT_BUFFER output;
+	if(FAILED_NTSTATUS(Acpi_EvaluateDsmWithPayload(originatingDevice, u.data, sizeof(u.data), &output))) {
+		return -EC_RES_BUS_ERROR;
+	}
+
+	if(output->Count != 1) {
+		return -EC_RES_DUP_UNAVAILABLE;
+	}
+	if(output->Argument[0].Type != ACPI_METHOD_ARGUMENT_BUFFER) {
+		return -EC_RES_INVALID_RESPONSE;
+	}
+
+	memcpy(r.data, output->Argument[0].Data, output->Argument[0].DataLength);
+	ExFreePoolWithTag(output, CROS_EC_POOL_TAG);
 
 	if(r.rs.struct_version != EC_HOST_RESPONSE_VERSION) {
 		res = -EC_RES_INVALID_HEADER_VERSION;
@@ -242,7 +270,9 @@ int ECSendCommandLPCv3(WDFDEVICE originatingDevice,
 	}
 
 	if(r.rs.data_len > 0) {
+#if 0
 		ECTransfer(originatingDevice, EC_XFER_READ, 8, r.data + sizeof(r.rs), r.rs.data_len);
+#endif
 		if(ECChecksumBuffer(r.data, sizeof(r.rs) + r.rs.data_len)) {
 			res = -EC_RES_INVALID_CHECKSUM;
 			goto Out;

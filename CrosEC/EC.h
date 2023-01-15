@@ -1,6 +1,8 @@
 #pragma once
 
 #include <wdf.h>
+#include <acpiioct.h>
+#include <acpitabl.h>
 
 #ifndef __packed
 #define __packed

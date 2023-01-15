@@ -1,6 +1,8 @@
 #pragma once
 
 #include "public.h"
+#include <acpiioct.h>
+#include <acpitabl.h>
 
 EXTERN_C_START
 
@@ -23,6 +25,14 @@ NTSTATUS CrosECEvtDeviceContextCleanup(_In_ WDFOBJECT object);
 
 NTSTATUS CrosECDeviceAcquireLock(_In_ WDFOBJECT device);
 NTSTATUS CrosECDeviceReleaseLock(_In_ WDFOBJECT device);
+_IRQL_requires_max_(PASSIVE_LEVEL) NTSTATUS Acpi_EvaluateDsmWithReadmem(_In_ WDFDEVICE device,
+                                                                        size_t offset,
+                                                                        size_t size,
+                                                                        _Outptr_opt_ PACPI_EVAL_OUTPUT_BUFFER* Output);
+_IRQL_requires_max_(PASSIVE_LEVEL) NTSTATUS Acpi_EvaluateDsmWithPayload(_In_ WDFDEVICE device,
+                                                                        const char* buffer,
+                                                                        size_t size,
+                                                                        _Outptr_opt_ PACPI_EVAL_OUTPUT_BUFFER* Output);
 
 #define CROS_EC_POOL_TAG 'CRos'
 
