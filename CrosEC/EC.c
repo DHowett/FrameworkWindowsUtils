@@ -88,6 +88,29 @@ static int ECTransferMec(WDFDEVICE originatingDevice,
 	return 0;
 }
 
+static int ECTransferLinearAzaleaLotus(WDFDEVICE originatingDevice,
+                                       EC_TRANSFER_DIRECTION direction,
+                                       USHORT address,
+                                       char* data,
+                                       USHORT size) {
+	UNREFERENCED_PARAMETER(originatingDevice);
+	UINT16 basePort = 0x800;
+	basePort |= (-((address & 0xFF00) > 0) & 0b0000011000000000);  // Set bits 9, 10 if the address is over 0xFF
+	basePort |= (-((address & 0xF000) > 0) & 0b0000000100000000);  // Set bit 8 if the address is over 0xFFF
+	address = address & 0xFF;                                      // Mask off the bottom byte
+	if(direction == EC_XFER_WRITE) {
+		for(int i = 0; i < size; ++i) {
+			outb(data[i], basePort + address + i);
+		}
+	} else {
+		for(int i = 0; i < size; ++i) {
+			data[i] = inb(basePort + address + i);
+		}
+	}
+
+	return 0;
+}
+
 /*
  * Wait for the EC to be unbusy.  Returns 0 if unbusy, non-zero if
  * timeout.
@@ -258,6 +281,13 @@ NTSTATUS ECProbe(WDFDEVICE device) {
 	CHAR buffer[2];
 
 	deviceContext->xfer = &ECTransferMec;
+	if(2 == ECReadMemoryLPC(device, EC_MEMMAP_ID, &buffer[0], 2)) {
+		if(buffer[0] == 'E' && buffer[1] == 'C') {
+			return STATUS_SUCCESS;
+		}
+	}
+
+	deviceContext->xfer = &ECTransferLinearAzaleaLotus;
 	if(2 == ECReadMemoryLPC(device, EC_MEMMAP_ID, &buffer[0], 2)) {
 		if(buffer[0] == 'E' && buffer[1] == 'C') {
 			return STATUS_SUCCESS;
