@@ -1,6 +1,7 @@
 #include <ntddk.h>
 #include <wdf.h>
 
+#include "Driver.h"
 #include "Device.h"
 #include "EC.h"
 
@@ -20,12 +21,6 @@ static __inline unsigned short inw(unsigned int __port) {
 	return READ_PORT_USHORT((PUSHORT)__port);
 }
 
-typedef enum _EC_TRANSFER_DIRECTION
-{
-	EC_XFER_WRITE,
-	EC_XFER_READ
-} EC_TRANSFER_DIRECTION;
-
 // As defined in MEC172x section 16.8.3
 // https://ww1.microchip.com/downloads/en/DeviceDoc/MEC172x-Data-Sheet-DS00003583C.pdf
 #define MEC_EC_BYTE_ACCESS               0x00
@@ -38,11 +33,11 @@ typedef enum _EC_TRANSFER_DIRECTION
 #define MEC_LPC_DATA_REGISTER2    0x0806
 #define MEC_LPC_DATA_REGISTER3    0x0807
 
-static int ECTransfer(WDFDEVICE originatingDevice,
-                      EC_TRANSFER_DIRECTION direction,
-                      USHORT address,
-                      char* data,
-                      USHORT size) {
+static int ECTransferMec(WDFDEVICE originatingDevice,
+                         EC_TRANSFER_DIRECTION direction,
+                         USHORT address,
+                         char* data,
+                         USHORT size) {
 	UNREFERENCED_PARAMETER(originatingDevice);
 	int pos = 0;
 	USHORT temp[2];
@@ -135,6 +130,7 @@ static UCHAR ECChecksumBuffer(char* data, int size) {
 };
 
 int ECReadMemoryLPC(WDFDEVICE originatingDevice, int offset, void* buffer, int length) {
+	PDEVICE_CONTEXT deviceContext = DeviceGetContext(originatingDevice);
 	int off = offset;
 	int cnt = 0;
 	UCHAR* s = buffer;
@@ -145,12 +141,12 @@ int ECReadMemoryLPC(WDFDEVICE originatingDevice, int offset, void* buffer, int l
 
 	if(length > 0) {
 		// Read specified bytes directly
-		ECTransfer(originatingDevice, EC_XFER_READ, (USHORT)(0x100 + off), buffer, (USHORT)length);
+		deviceContext->xfer(originatingDevice, EC_XFER_READ, (USHORT)(0x100 + off), buffer, (USHORT)length);
 		cnt = length;
 	} else {
 		// Read a string until we get a \0
 		for(; off < EC_MEMMAP_SIZE; ++off, ++s) {
-			ECTransfer(originatingDevice, EC_XFER_READ, (USHORT)(0x100 + off), (char*)s, 1);
+			deviceContext->xfer(originatingDevice, EC_XFER_READ, (USHORT)(0x100 + off), (char*)s, 1);
 			cnt++;
 			if(!*s) {
 				break;
@@ -168,6 +164,7 @@ int ECSendCommandLPCv3(WDFDEVICE originatingDevice,
                        int outsize,
                        void* indata,
                        int insize) {
+	PDEVICE_CONTEXT deviceContext = DeviceGetContext(originatingDevice);
 	int res = EC_RES_SUCCESS;
 	UCHAR csum = 0;
 	int i;
@@ -206,7 +203,7 @@ int ECSendCommandLPCv3(WDFDEVICE originatingDevice,
 		goto Out;
 	}
 
-	ECTransfer(originatingDevice, EC_XFER_WRITE, 0, u.data, (USHORT)(outsize + sizeof(u.rq)));
+	deviceContext->xfer(originatingDevice, EC_XFER_WRITE, 0, u.data, (USHORT)(outsize + sizeof(u.rq)));
 
 	/* Start the command */
 	outb(EC_COMMAND_PROTOCOL_3, EC_LPC_ADDR_HOST_CMD);
@@ -224,7 +221,7 @@ int ECSendCommandLPCv3(WDFDEVICE originatingDevice,
 	}
 
 	csum = 0;
-	ECTransfer(originatingDevice, EC_XFER_READ, 0, r.data, sizeof(r.rs));
+	deviceContext->xfer(originatingDevice, EC_XFER_READ, 0, r.data, sizeof(r.rs));
 
 	if(r.rs.struct_version != EC_HOST_RESPONSE_VERSION) {
 		res = -EC_RES_INVALID_HEADER_VERSION;
@@ -242,7 +239,7 @@ int ECSendCommandLPCv3(WDFDEVICE originatingDevice,
 	}
 
 	if(r.rs.data_len > 0) {
-		ECTransfer(originatingDevice, EC_XFER_READ, 8, r.data + sizeof(r.rs), r.rs.data_len);
+		deviceContext->xfer(originatingDevice, EC_XFER_READ, 8, r.data + sizeof(r.rs), r.rs.data_len);
 		if(ECChecksumBuffer(r.data, sizeof(r.rs) + r.rs.data_len)) {
 			res = -EC_RES_INVALID_CHECKSUM;
 			goto Out;
@@ -254,4 +251,18 @@ int ECSendCommandLPCv3(WDFDEVICE originatingDevice,
 
 Out:
 	return res;
+}
+
+NTSTATUS ECProbe(WDFDEVICE device) {
+	PDEVICE_CONTEXT deviceContext = DeviceGetContext(device);
+	CHAR buffer[2];
+
+	deviceContext->xfer = &ECTransferMec;
+	if(2 == ECReadMemoryLPC(device, EC_MEMMAP_ID, &buffer[0], 2)) {
+		if(buffer[0] == 'E' && buffer[1] == 'C') {
+			return STATUS_SUCCESS;
+		}
+	}
+
+	return STATUS_DEVICE_DOES_NOT_EXIST;
 }

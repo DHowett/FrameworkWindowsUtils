@@ -21,12 +21,13 @@ NTSTATUS CrosECCreateDevice(_Inout_ PWDFDEVICE_INIT DeviceInit) {
 	WdfDeviceInitAssignName(DeviceInit, &Name);
 
 	NT_RETURN_IF_NTSTATUS_FAILED(WdfDeviceCreate(&DeviceInit, &deviceAttributes, &device));
-
 	deviceContext = DeviceGetContext(device);
 
 	deviceContext->inflightCommand = ExAllocatePool2(POOL_FLAG_NON_PAGED, CROSEC_CMD_MAX, CROS_EC_POOL_TAG);
 	KeInitializeTimer(&deviceContext->waitTimer);
 	KeInitializeGuardedMutex(&deviceContext->mutex);
+
+	NT_RETURN_IF_NTSTATUS_FAILED(ECProbe(device));
 
 	NT_RETURN_IF_NTSTATUS_FAILED(
 		WdfDeviceCreateDeviceInterface(device, &GUID_DEVINTERFACE_CrosEC, NULL /* ReferenceString */));

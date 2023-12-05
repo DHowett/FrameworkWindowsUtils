@@ -32,6 +32,7 @@
 #define EC_LPC_ADDR_HOST_PARAM   0x804
 #define EC_MEMMAP_SIZE           0xFF
 #define EECRESULT                1000
+#define EC_MEMMAP_ID             0x20 /* 0x20 == 'E', 0x21 == 'C' */
 
 #include <pshpack1.h>
 struct ec_host_request {
@@ -51,8 +52,7 @@ struct ec_host_response {
 	USHORT reserved;
 } __ec_align4;
 
-enum ec_status
-{
+enum ec_status {
 	EC_RES_SUCCESS = 0,
 	EC_RES_INVALID_COMMAND = 1,
 	EC_RES_ERROR = 2,
@@ -85,3 +85,16 @@ int ECSendCommandLPCv3(WDFDEVICE originatingDevice,
                        int outsize,
                        void* indata,
                        int insize);
+
+NTSTATUS ECProbe(WDFDEVICE device);
+
+typedef enum _EC_TRANSFER_DIRECTION {
+	EC_XFER_WRITE,
+	EC_XFER_READ
+} EC_TRANSFER_DIRECTION;
+
+typedef int (*EC_XFER_FUNC)(WDFDEVICE originatingDevice,
+                            EC_TRANSFER_DIRECTION direction,
+                            USHORT address,
+                            char* data,
+                            USHORT size);
