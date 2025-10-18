@@ -69,7 +69,7 @@ NTSTATUS CrosECQueueInitialize(_In_ WDFDEVICE Device) {
 NTSTATUS CrosECIoctlXCmd(_In_ WDFDEVICE Device, _In_ PDEVICE_CONTEXT DeviceContext, _In_ WDFREQUEST Request) {
 	PCROSEC_COMMAND cmd;
 	size_t cmdLen;
-	NT_RETURN_IF_NTSTATUS_FAILED(WdfRequestRetrieveInputBuffer(Request, sizeof(cmd), (PVOID*)&cmd, &cmdLen));
+	NT_RETURN_IF_NTSTATUS_FAILED(WdfRequestRetrieveInputBuffer(Request, sizeof(*cmd), (PVOID*)&cmd, &cmdLen));
 
 	void* outbuf;
 	size_t outLen;
